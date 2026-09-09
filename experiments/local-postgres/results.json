@@ -1,0 +1,21 @@
+{
+  "binary": "/Library/PostgreSQL/15/bin",
+  "cycles": [
+    {
+      "start_ms": 222.12,
+      "query_result": "42",
+      "stop_ms": 110.13
+    },
+    {
+      "start_ms": 131.2,
+      "query_result": "42",
+      "stop_ms": 112.83
+    },
+    {
+      "start_ms": 135.36,
+      "query_result": "42",
+      "stop_ms": 111.17
+    }
+  ],
+  "init_ms": 1157.0
+}

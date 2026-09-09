@@ -1,0 +1,50 @@
+{
+  "platform": "darwin",
+  "python": "/Library/Frameworks/Python.framework/Versions/3.12/bin/python3.12",
+  "exit_code": 0,
+  "elapsed_ms": 38.89,
+  "stderr": "",
+  "checks": {
+    "selected_read": "allowed",
+    "unselected_read": "blocked",
+    "file_write": "blocked",
+    "network": "blocked"
+  },
+  "output_file_exists": false,
+  "production_ready": false,
+  "worker": {
+    "exit_code": 0,
+    "response": {
+      "ok": true,
+      "source": "selected.csv",
+      "dataset_rows": 2,
+      "schema": [
+        {
+          "name": "region",
+          "type": "VARCHAR"
+        },
+        {
+          "name": "amount",
+          "type": "BIGINT"
+        }
+      ],
+      "columns": [
+        {
+          "name": "total",
+          "type": "HUGEINT"
+        }
+      ],
+      "rows": [
+        [
+          "30"
+        ]
+      ],
+      "truncated": false,
+      "cells_truncated": false,
+      "sql": "SELECT sum(amount) AS total FROM dataset",
+      "import_ms": 30.61,
+      "elapsed_ms": 31.29
+    },
+    "stderr": ""
+  }
+}

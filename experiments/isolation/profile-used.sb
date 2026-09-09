@@ -1,0 +1,7 @@
+(version 1)
+(deny default)
+(allow file-read-metadata)
+(allow process*)
+(allow sysctl-read)
+(allow mach-lookup)
+(allow file-read* (subpath "/Library/Frameworks/Python.framework/Versions/3.12") (subpath "/Users/madhukoseke/Documents/Projects/Quelyt/experiments/isolation") (subpath "/Users/madhukoseke/Documents/Projects/Quelyt/src") (subpath "/Users/madhukoseke/Documents/Projects/Quelyt/.venv") (subpath "/System") (subpath "/usr/lib") (subpath "/private/var/db/dyld") (literal "SYNTHETIC_TEMP_DIRECTORY/selected.csv") (literal "/") (literal "/dev/urandom") (literal "/dev/null") (literal "/dev/random") (literal "/Library/Frameworks/Python.framework/Versions/3.12/bin/python3.12"))

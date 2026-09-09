@@ -1,0 +1,100 @@
+{
+  "duckdb": "1.5.5",
+  "rows": 1000000,
+  "threads": 4,
+  "memory_limit": "512MB",
+  "formats": {
+    "csv": {
+      "bytes": 25788917,
+      "aggregate": {
+        "first_ms": 63.24,
+        "median_ms": 52.86,
+        "runs_ms": [
+          63.24,
+          52.86,
+          52.63,
+          53.16,
+          51.75
+        ]
+      },
+      "preview": {
+        "first_ms": 24.6,
+        "median_ms": 24.72,
+        "runs_ms": [
+          24.6,
+          24.83,
+          24.59,
+          25.08,
+          24.72
+        ]
+      }
+    },
+    "parquet": {
+      "bytes": 4116044,
+      "aggregate": {
+        "first_ms": 2.64,
+        "median_ms": 1.25,
+        "runs_ms": [
+          2.64,
+          1.25,
+          1.33,
+          1.15,
+          1.25
+        ]
+      },
+      "preview": {
+        "first_ms": 3.44,
+        "median_ms": 1.17,
+        "runs_ms": [
+          3.44,
+          1.28,
+          1.14,
+          1.17,
+          1.14
+        ]
+      }
+    },
+    "json": {
+      "bytes": 66788890,
+      "aggregate": {
+        "first_ms": 67.59,
+        "median_ms": 63.95,
+        "runs_ms": [
+          67.59,
+          64.71,
+          63.15,
+          63.95,
+          62.37
+        ]
+      },
+      "preview": {
+        "first_ms": 21.67,
+        "median_ms": 22.05,
+        "runs_ms": [
+          21.67,
+          20.6,
+          22.05,
+          23.48,
+          22.43
+        ]
+      }
+    }
+  },
+  "readonly_probes": {
+    "write": "Invalid Input Error: Cannot execute statement of type \"DELETE\" on database \"readonly\" which is attached in read-only mode!",
+    "file_read": "ALLOWED",
+    "file_write": "ALLOWED",
+    "config": "ALLOWED"
+  },
+  "hardened_probes": {
+    "write": "Invalid Input Error: Cannot execute statement of type \"DELETE\" on database \"readonly\" which is attached in read-only mode!",
+    "file_read": "Permission Error: Cannot access file \"/Users/madhukoseke/Documents/Projects/Quelyt/experiments/discovery/data/sales.csv\" - file system operations are disabled by configuration",
+    "file_write": "Permission Error: Cannot access file \"/Users/madhukoseke/Documents/Projects/Quelyt/experiments/discovery/data/escape.csv\" - file system operations are disabled by configuration",
+    "config": "Invalid Input Error: Cannot change configuration option \"threads\" - the configuration has been locked"
+  },
+  "cancel": {
+    "elapsed_ms": 108.26,
+    "outcome": "INTERRUPT Error: Interrupted!"
+  },
+  "peak_process_rss_bytes": 348291072
+}

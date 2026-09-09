@@ -1,0 +1,82 @@
+[
+  {
+    "question": "How many orders are there?",
+    "expected_sql": "SELECT count(*) FROM orders"
+  },
+  {
+    "question": "What is the sum of amount for all orders?",
+    "expected_sql": "SELECT sum(amount) FROM orders"
+  },
+  {
+    "question": "What is the average amount?",
+    "expected_sql": "SELECT avg(amount) FROM orders"
+  },
+  {
+    "question": "What is the minimum amount?",
+    "expected_sql": "SELECT min(amount) FROM orders"
+  },
+  {
+    "question": "What is the maximum amount?",
+    "expected_sql": "SELECT max(amount) FROM orders"
+  },
+  {
+    "question": "How many orders are in West?",
+    "expected_sql": "SELECT count(*) FROM orders WHERE region='West'"
+  },
+  {
+    "question": "Sum amount by region.",
+    "expected_sql": "SELECT region,sum(amount) FROM orders GROUP BY region"
+  },
+  {
+    "question": "Count orders by status.",
+    "expected_sql": "SELECT status,count(*) FROM orders GROUP BY status"
+  },
+  {
+    "question": "How many completed orders?",
+    "expected_sql": "SELECT count(*) FROM orders WHERE status='completed'"
+  },
+  {
+    "question": "Sum amount of completed orders.",
+    "expected_sql": "SELECT sum(amount) FROM orders WHERE status='completed'"
+  },
+  {
+    "question": "How many returned orders in West?",
+    "expected_sql": "SELECT count(*) FROM orders WHERE status='returned' AND region='West'"
+  },
+  {
+    "question": "Count distinct regions.",
+    "expected_sql": "SELECT count(DISTINCT region) FROM orders"
+  },
+  {
+    "question": "Earliest order date?",
+    "expected_sql": "SELECT min(order_date) FROM orders"
+  },
+  {
+    "question": "Latest order date?",
+    "expected_sql": "SELECT max(order_date) FROM orders"
+  },
+  {
+    "question": "Count orders in August 2026.",
+    "expected_sql": "SELECT count(*) FROM orders WHERE order_date >= DATE '2026-08-01' AND order_date < DATE '2026-09-01'"
+  },
+  {
+    "question": "Sum amount by calendar month, return month as YYYY-MM text.",
+    "expected_sql": "SELECT strftime(order_date,'%Y-%m'),sum(amount) FROM orders GROUP BY 1"
+  },
+  {
+    "question": "Return IDs of the three highest amount orders, breaking ties by lowest ID.",
+    "expected_sql": "SELECT id FROM orders ORDER BY amount DESC,id LIMIT 3"
+  },
+  {
+    "question": "How many orders have amount greater than 5?",
+    "expected_sql": "SELECT count(*) FROM orders WHERE amount>5"
+  },
+  {
+    "question": "Average amount by status.",
+    "expected_sql": "SELECT status,avg(amount) FROM orders GROUP BY status"
+  },
+  {
+    "question": "Sum amount for completed West orders.",
+    "expected_sql": "SELECT sum(amount) FROM orders WHERE status='completed' AND region='West'"
+  }
+]

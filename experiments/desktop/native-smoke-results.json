@@ -1,0 +1,18 @@
+[
+  {
+    "case" : "native_open_preview",
+    "passed" : true
+  },
+  {
+    "case" : "native_count_action",
+    "passed" : true
+  },
+  {
+    "case" : "native_write_rejection",
+    "passed" : true
+  },
+  {
+    "case" : "native_cancel_action",
+    "passed" : true
+  }
+]

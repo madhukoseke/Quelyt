@@ -1,0 +1,13 @@
+{
+  "name": "quelyt-framework-experiment",
+  "private": true,
+  "version": "0.0.1",
+  "scripts": {
+    "build:web": "esbuild web/main.js --bundle --format=iife --outfile=dist/main.js && cp web/index.html dist/index.html && cp web/style.css dist/style.css",
+    "electron": "npm run build:web && electron electron.cjs",
+    "tauri": "tauri",
+    "build:tauri": "npm run build:web && tauri build --bundles app"
+  },
+  "dependencies": {"@codemirror/lang-sql": "6.10.0", "codemirror": "6.0.2"},
+  "devDependencies": {"@tauri-apps/cli": "2.11.4", "electron": "44.3.0", "esbuild": "0.28.2"}
+}

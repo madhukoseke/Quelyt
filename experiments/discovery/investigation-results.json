@@ -1,0 +1,49 @@
+{
+  "kind": "deterministic scripted investigation, not model evaluation",
+  "trace": [
+    {
+      "sql": "SELECT period,sum(revenue) revenue FROM sales GROUP BY period ORDER BY period",
+      "rows": [
+        [
+          "August",
+          2700
+        ],
+        [
+          "July",
+          3000
+        ]
+      ]
+    },
+    {
+      "sql": "SELECT region,sum(CASE WHEN period='August' THEN revenue ELSE -revenue END) delta FROM sales GROUP BY region ORDER BY delta",
+      "rows": [
+        [
+          "West",
+          -400
+        ],
+        [
+          "East",
+          100
+        ]
+      ]
+    },
+    {
+      "sql": "SELECT segment,sum(CASE WHEN period='August' THEN revenue ELSE -revenue END) delta FROM sales WHERE region='West' GROUP BY segment ORDER BY delta",
+      "rows": [
+        [
+          "Enterprise",
+          -400
+        ],
+        [
+          "SMB",
+          0
+        ]
+      ]
+    }
+  ],
+  "net_delta": -300,
+  "percent_change": -10,
+  "west_enterprise_delta": -400,
+  "east_enterprise_offset": 100,
+  "conclusion": "West Enterprise accounts for a -400 change offset by +100 East Enterprise. Descriptive contribution, not proof of business causality."
+}

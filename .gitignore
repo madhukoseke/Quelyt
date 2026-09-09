@@ -1,0 +1,17 @@
+.venv/
+__pycache__/
+*.pyc
+.DS_Store
+experiments/discovery/data/
+experiments/local-postgres/run/
+.build/
+
+experiments/desktop/probe
+experiments/desktop/*.app/
+
+experiments/frameworks/node_modules/
+experiments/frameworks/dist/
+experiments/frameworks/src-tauri/target/
+
+experiments/frameworks/src-tauri/icons/*
+!experiments/frameworks/src-tauri/icons/icon.png

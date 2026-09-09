@@ -1,0 +1,762 @@
+[
+  {
+    "tables": 10,
+    "method": "full",
+    "elapsed_ms": 0.014,
+    "mean_recall": 1.0,
+    "mean_context_chars": 404.0,
+    "cases": [
+      {
+        "question": "orders amount",
+        "recall": 1.0,
+        "selected": "all 10",
+        "context_chars": 404
+      },
+      {
+        "question": "customer email",
+        "recall": 1.0,
+        "selected": "all 10",
+        "context_chars": 404
+      },
+      {
+        "question": "product category",
+        "recall": 1.0,
+        "selected": "all 10",
+        "context_chars": 404
+      },
+      {
+        "question": "revenue by customer",
+        "recall": 1.0,
+        "selected": "all 10",
+        "context_chars": 404
+      },
+      {
+        "question": "refund rate",
+        "recall": 1.0,
+        "selected": "all 10",
+        "context_chars": 404
+      }
+    ]
+  },
+  {
+    "tables": 10,
+    "method": "lexical",
+    "elapsed_ms": 0.04,
+    "mean_recall": 0.8,
+    "mean_context_chars": 54.2,
+    "cases": [
+      {
+        "question": "orders amount",
+        "recall": 1.0,
+        "selected": [
+          "orders",
+          "returns"
+        ],
+        "context_chars": 77
+      },
+      {
+        "question": "customer email",
+        "recall": 1.0,
+        "selected": [
+          "customers",
+          "orders"
+        ],
+        "context_chars": 80
+      },
+      {
+        "question": "product category",
+        "recall": 1.0,
+        "selected": [
+          "products"
+        ],
+        "context_chars": 34
+      },
+      {
+        "question": "revenue by customer",
+        "recall": 1.0,
+        "selected": [
+          "orders",
+          "customers"
+        ],
+        "context_chars": 80
+      },
+      {
+        "question": "refund rate",
+        "recall": 0.0,
+        "selected": [],
+        "context_chars": 0
+      }
+    ]
+  },
+  {
+    "tables": 10,
+    "method": "bm25",
+    "elapsed_ms": 0.048,
+    "mean_recall": 0.8,
+    "mean_context_chars": 54.2,
+    "cases": [
+      {
+        "question": "orders amount",
+        "recall": 1.0,
+        "selected": [
+          "orders",
+          "returns"
+        ],
+        "context_chars": 77
+      },
+      {
+        "question": "customer email",
+        "recall": 1.0,
+        "selected": [
+          "customers",
+          "orders"
+        ],
+        "context_chars": 80
+      },
+      {
+        "question": "product category",
+        "recall": 1.0,
+        "selected": [
+          "products"
+        ],
+        "context_chars": 34
+      },
+      {
+        "question": "revenue by customer",
+        "recall": 1.0,
+        "selected": [
+          "customers",
+          "orders"
+        ],
+        "context_chars": 80
+      },
+      {
+        "question": "refund rate",
+        "recall": 0.0,
+        "selected": [],
+        "context_chars": 0
+      }
+    ]
+  },
+  {
+    "tables": 10,
+    "method": "bm25_graph",
+    "elapsed_ms": 0.043,
+    "mean_recall": 0.8,
+    "mean_context_chars": 61.2,
+    "cases": [
+      {
+        "question": "orders amount",
+        "recall": 1.0,
+        "selected": [
+          "orders",
+          "returns",
+          "customers"
+        ],
+        "context_chars": 112
+      },
+      {
+        "question": "customer email",
+        "recall": 1.0,
+        "selected": [
+          "customers",
+          "orders"
+        ],
+        "context_chars": 80
+      },
+      {
+        "question": "product category",
+        "recall": 1.0,
+        "selected": [
+          "products"
+        ],
+        "context_chars": 34
+      },
+      {
+        "question": "revenue by customer",
+        "recall": 1.0,
+        "selected": [
+          "customers",
+          "orders"
+        ],
+        "context_chars": 80
+      },
+      {
+        "question": "refund rate",
+        "recall": 0.0,
+        "selected": [],
+        "context_chars": 0
+      }
+    ]
+  },
+  {
+    "tables": 100,
+    "method": "full",
+    "elapsed_ms": 0.033,
+    "mean_recall": 1.0,
+    "mean_context_chars": 4360.0,
+    "cases": [
+      {
+        "question": "orders amount",
+        "recall": 1.0,
+        "selected": "all 100",
+        "context_chars": 4360
+      },
+      {
+        "question": "customer email",
+        "recall": 1.0,
+        "selected": "all 100",
+        "context_chars": 4360
+      },
+      {
+        "question": "product category",
+        "recall": 1.0,
+        "selected": "all 100",
+        "context_chars": 4360
+      },
+      {
+        "question": "revenue by customer",
+        "recall": 1.0,
+        "selected": "all 100",
+        "context_chars": 4360
+      },
+      {
+        "question": "refund rate",
+        "recall": 1.0,
+        "selected": "all 100",
+        "context_chars": 4360
+      }
+    ]
+  },
+  {
+    "tables": 100,
+    "method": "lexical",
+    "elapsed_ms": 0.269,
+    "mean_recall": 0.8,
+    "mean_context_chars": 54.2,
+    "cases": [
+      {
+        "question": "orders amount",
+        "recall": 1.0,
+        "selected": [
+          "orders",
+          "returns"
+        ],
+        "context_chars": 77
+      },
+      {
+        "question": "customer email",
+        "recall": 1.0,
+        "selected": [
+          "customers",
+          "orders"
+        ],
+        "context_chars": 80
+      },
+      {
+        "question": "product category",
+        "recall": 1.0,
+        "selected": [
+          "products"
+        ],
+        "context_chars": 34
+      },
+      {
+        "question": "revenue by customer",
+        "recall": 1.0,
+        "selected": [
+          "orders",
+          "customers"
+        ],
+        "context_chars": 80
+      },
+      {
+        "question": "refund rate",
+        "recall": 0.0,
+        "selected": [],
+        "context_chars": 0
+      }
+    ]
+  },
+  {
+    "tables": 100,
+    "method": "bm25",
+    "elapsed_ms": 0.251,
+    "mean_recall": 0.8,
+    "mean_context_chars": 54.2,
+    "cases": [
+      {
+        "question": "orders amount",
+        "recall": 1.0,
+        "selected": [
+          "orders",
+          "returns"
+        ],
+        "context_chars": 77
+      },
+      {
+        "question": "customer email",
+        "recall": 1.0,
+        "selected": [
+          "customers",
+          "orders"
+        ],
+        "context_chars": 80
+      },
+      {
+        "question": "product category",
+        "recall": 1.0,
+        "selected": [
+          "products"
+        ],
+        "context_chars": 34
+      },
+      {
+        "question": "revenue by customer",
+        "recall": 1.0,
+        "selected": [
+          "customers",
+          "orders"
+        ],
+        "context_chars": 80
+      },
+      {
+        "question": "refund rate",
+        "recall": 0.0,
+        "selected": [],
+        "context_chars": 0
+      }
+    ]
+  },
+  {
+    "tables": 100,
+    "method": "bm25_graph",
+    "elapsed_ms": 0.251,
+    "mean_recall": 0.8,
+    "mean_context_chars": 61.2,
+    "cases": [
+      {
+        "question": "orders amount",
+        "recall": 1.0,
+        "selected": [
+          "orders",
+          "returns",
+          "customers"
+        ],
+        "context_chars": 112
+      },
+      {
+        "question": "customer email",
+        "recall": 1.0,
+        "selected": [
+          "customers",
+          "orders"
+        ],
+        "context_chars": 80
+      },
+      {
+        "question": "product category",
+        "recall": 1.0,
+        "selected": [
+          "products"
+        ],
+        "context_chars": 34
+      },
+      {
+        "question": "revenue by customer",
+        "recall": 1.0,
+        "selected": [
+          "customers",
+          "orders"
+        ],
+        "context_chars": 80
+      },
+      {
+        "question": "refund rate",
+        "recall": 0.0,
+        "selected": [],
+        "context_chars": 0
+      }
+    ]
+  },
+  {
+    "tables": 1000,
+    "method": "full",
+    "elapsed_ms": 0.227,
+    "mean_recall": 1.0,
+    "mean_context_chars": 44856.0,
+    "cases": [
+      {
+        "question": "orders amount",
+        "recall": 1.0,
+        "selected": "all 1000",
+        "context_chars": 44856
+      },
+      {
+        "question": "customer email",
+        "recall": 1.0,
+        "selected": "all 1000",
+        "context_chars": 44856
+      },
+      {
+        "question": "product category",
+        "recall": 1.0,
+        "selected": "all 1000",
+        "context_chars": 44856
+      },
+      {
+        "question": "revenue by customer",
+        "recall": 1.0,
+        "selected": "all 1000",
+        "context_chars": 44856
+      },
+      {
+        "question": "refund rate",
+        "recall": 1.0,
+        "selected": "all 1000",
+        "context_chars": 44856
+      }
+    ]
+  },
+  {
+    "tables": 1000,
+    "method": "lexical",
+    "elapsed_ms": 2.6,
+    "mean_recall": 0.8,
+    "mean_context_chars": 54.2,
+    "cases": [
+      {
+        "question": "orders amount",
+        "recall": 1.0,
+        "selected": [
+          "orders",
+          "returns"
+        ],
+        "context_chars": 77
+      },
+      {
+        "question": "customer email",
+        "recall": 1.0,
+        "selected": [
+          "customers",
+          "orders"
+        ],
+        "context_chars": 80
+      },
+      {
+        "question": "product category",
+        "recall": 1.0,
+        "selected": [
+          "products"
+        ],
+        "context_chars": 34
+      },
+      {
+        "question": "revenue by customer",
+        "recall": 1.0,
+        "selected": [
+          "orders",
+          "customers"
+        ],
+        "context_chars": 80
+      },
+      {
+        "question": "refund rate",
+        "recall": 0.0,
+        "selected": [],
+        "context_chars": 0
+      }
+    ]
+  },
+  {
+    "tables": 1000,
+    "method": "bm25",
+    "elapsed_ms": 2.418,
+    "mean_recall": 0.8,
+    "mean_context_chars": 54.2,
+    "cases": [
+      {
+        "question": "orders amount",
+        "recall": 1.0,
+        "selected": [
+          "orders",
+          "returns"
+        ],
+        "context_chars": 77
+      },
+      {
+        "question": "customer email",
+        "recall": 1.0,
+        "selected": [
+          "customers",
+          "orders"
+        ],
+        "context_chars": 80
+      },
+      {
+        "question": "product category",
+        "recall": 1.0,
+        "selected": [
+          "products"
+        ],
+        "context_chars": 34
+      },
+      {
+        "question": "revenue by customer",
+        "recall": 1.0,
+        "selected": [
+          "customers",
+          "orders"
+        ],
+        "context_chars": 80
+      },
+      {
+        "question": "refund rate",
+        "recall": 0.0,
+        "selected": [],
+        "context_chars": 0
+      }
+    ]
+  },
+  {
+    "tables": 1000,
+    "method": "bm25_graph",
+    "elapsed_ms": 2.665,
+    "mean_recall": 0.8,
+    "mean_context_chars": 61.2,
+    "cases": [
+      {
+        "question": "orders amount",
+        "recall": 1.0,
+        "selected": [
+          "orders",
+          "returns",
+          "customers"
+        ],
+        "context_chars": 112
+      },
+      {
+        "question": "customer email",
+        "recall": 1.0,
+        "selected": [
+          "customers",
+          "orders"
+        ],
+        "context_chars": 80
+      },
+      {
+        "question": "product category",
+        "recall": 1.0,
+        "selected": [
+          "products"
+        ],
+        "context_chars": 34
+      },
+      {
+        "question": "revenue by customer",
+        "recall": 1.0,
+        "selected": [
+          "customers",
+          "orders"
+        ],
+        "context_chars": 80
+      },
+      {
+        "question": "refund rate",
+        "recall": 0.0,
+        "selected": [],
+        "context_chars": 0
+      }
+    ]
+  },
+  {
+    "tables": 5000,
+    "method": "full",
+    "elapsed_ms": 1.558,
+    "mean_recall": 1.0,
+    "mean_context_chars": 228852.0,
+    "cases": [
+      {
+        "question": "orders amount",
+        "recall": 1.0,
+        "selected": "all 5000",
+        "context_chars": 228852
+      },
+      {
+        "question": "customer email",
+        "recall": 1.0,
+        "selected": "all 5000",
+        "context_chars": 228852
+      },
+      {
+        "question": "product category",
+        "recall": 1.0,
+        "selected": "all 5000",
+        "context_chars": 228852
+      },
+      {
+        "question": "revenue by customer",
+        "recall": 1.0,
+        "selected": "all 5000",
+        "context_chars": 228852
+      },
+      {
+        "question": "refund rate",
+        "recall": 1.0,
+        "selected": "all 5000",
+        "context_chars": 228852
+      }
+    ]
+  },
+  {
+    "tables": 5000,
+    "method": "lexical",
+    "elapsed_ms": 13.368,
+    "mean_recall": 0.8,
+    "mean_context_chars": 54.2,
+    "cases": [
+      {
+        "question": "orders amount",
+        "recall": 1.0,
+        "selected": [
+          "orders",
+          "returns"
+        ],
+        "context_chars": 77
+      },
+      {
+        "question": "customer email",
+        "recall": 1.0,
+        "selected": [
+          "customers",
+          "orders"
+        ],
+        "context_chars": 80
+      },
+      {
+        "question": "product category",
+        "recall": 1.0,
+        "selected": [
+          "products"
+        ],
+        "context_chars": 34
+      },
+      {
+        "question": "revenue by customer",
+        "recall": 1.0,
+        "selected": [
+          "orders",
+          "customers"
+        ],
+        "context_chars": 80
+      },
+      {
+        "question": "refund rate",
+        "recall": 0.0,
+        "selected": [],
+        "context_chars": 0
+      }
+    ]
+  },
+  {
+    "tables": 5000,
+    "method": "bm25",
+    "elapsed_ms": 12.288,
+    "mean_recall": 0.8,
+    "mean_context_chars": 54.2,
+    "cases": [
+      {
+        "question": "orders amount",
+        "recall": 1.0,
+        "selected": [
+          "orders",
+          "returns"
+        ],
+        "context_chars": 77
+      },
+      {
+        "question": "customer email",
+        "recall": 1.0,
+        "selected": [
+          "customers",
+          "orders"
+        ],
+        "context_chars": 80
+      },
+      {
+        "question": "product category",
+        "recall": 1.0,
+        "selected": [
+          "products"
+        ],
+        "context_chars": 34
+      },
+      {
+        "question": "revenue by customer",
+        "recall": 1.0,
+        "selected": [
+          "customers",
+          "orders"
+        ],
+        "context_chars": 80
+      },
+      {
+        "question": "refund rate",
+        "recall": 0.0,
+        "selected": [],
+        "context_chars": 0
+      }
+    ]
+  },
+  {
+    "tables": 5000,
+    "method": "bm25_graph",
+    "elapsed_ms": 12.273,
+    "mean_recall": 0.8,
+    "mean_context_chars": 61.2,
+    "cases": [
+      {
+        "question": "orders amount",
+        "recall": 1.0,
+        "selected": [
+          "orders",
+          "returns",
+          "customers"
+        ],
+        "context_chars": 112
+      },
+      {
+        "question": "customer email",
+        "recall": 1.0,
+        "selected": [
+          "customers",
+          "orders"
+        ],
+        "context_chars": 80
+      },
+      {
+        "question": "product category",
+        "recall": 1.0,
+        "selected": [
+          "products"
+        ],
+        "context_chars": 34
+      },
+      {
+        "question": "revenue by customer",
+        "recall": 1.0,
+        "selected": [
+          "customers",
+          "orders"
+        ],
+        "context_chars": 80
+      },
+      {
+        "question": "refund rate",
+        "recall": 0.0,
+        "selected": [],
+        "context_chars": 0
+      }
+    ]
+  }
+]

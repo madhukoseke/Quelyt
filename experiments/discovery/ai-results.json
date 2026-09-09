@@ -1,0 +1,198 @@
+{
+  "model": "llama3.2:1b",
+  "cases": [
+    {
+      "question": "How many orders are there?",
+      "expected_sql": "SELECT count(*) FROM orders",
+      "sql": "SELECT COUNT(*) FROM orders WHERE status = 'completed'",
+      "correct": false,
+      "eval_count": 19,
+      "eval_duration_ns": 391482000,
+      "load_duration_ns": 1873687709,
+      "elapsed_ms": 2442.85
+    },
+    {
+      "question": "What is the sum of amount for all orders?",
+      "expected_sql": "SELECT sum(amount) FROM orders",
+      "sql": "SELECT SUM(amount) FROM orders",
+      "correct": true,
+      "eval_count": 15,
+      "eval_duration_ns": 269749000,
+      "load_duration_ns": 1470542,
+      "elapsed_ms": 329.23
+    },
+    {
+      "question": "What is the average amount?",
+      "expected_sql": "SELECT avg(amount) FROM orders",
+      "sql": "SELECT AVG(amount) FROM orders WHERE status = 'completed'",
+      "correct": false,
+      "eval_count": 117,
+      "eval_duration_ns": 2328207000,
+      "load_duration_ns": 1747292,
+      "elapsed_ms": 2428.29
+    },
+    {
+      "question": "What is the minimum amount?",
+      "expected_sql": "SELECT min(amount) FROM orders",
+      "correct": false,
+      "error": "'sql'",
+      "elapsed_ms": 204.48
+    },
+    {
+      "question": "What is the maximum amount?",
+      "expected_sql": "SELECT max(amount) FROM orders",
+      "correct": false,
+      "error": "'sql'",
+      "elapsed_ms": 288.64
+    },
+    {
+      "question": "How many orders are in West?",
+      "expected_sql": "SELECT count(*) FROM orders WHERE region='West'",
+      "correct": false,
+      "error": "'sql'",
+      "elapsed_ms": 2624.99
+    },
+    {
+      "question": "Sum amount by region.",
+      "expected_sql": "SELECT region,sum(amount) FROM orders GROUP BY region",
+      "sql": "SELECT SUM(amount) AS total_amount FROM orders WHERE region = 'West'",
+      "correct": false,
+      "eval_count": 23,
+      "eval_duration_ns": 536572000,
+      "load_duration_ns": 1202291,
+      "elapsed_ms": 594.86
+    },
+    {
+      "question": "Count orders by status.",
+      "expected_sql": "SELECT status,count(*) FROM orders GROUP BY status",
+      "sql": "SELECT COUNT(*) FROM orders WHERE status = 'completed'",
+      "correct": false,
+      "eval_count": 43,
+      "eval_duration_ns": 955912000,
+      "load_duration_ns": 949666,
+      "elapsed_ms": 1020.61
+    },
+    {
+      "question": "How many completed orders?",
+      "expected_sql": "SELECT count(*) FROM orders WHERE status='completed'",
+      "sql": "SELECT COUNT(*) FROM orders WHERE status = 'completed'",
+      "correct": true,
+      "eval_count": 19,
+      "eval_duration_ns": 456489000,
+      "load_duration_ns": 1186000,
+      "elapsed_ms": 526.27
+    },
+    {
+      "question": "Sum amount of completed orders.",
+      "expected_sql": "SELECT sum(amount) FROM orders WHERE status='completed'",
+      "sql": "SELECT SUM(amount) FROM orders WHERE status = 'completed'",
+      "correct": true,
+      "eval_count": 20,
+      "eval_duration_ns": 454256000,
+      "load_duration_ns": 1246416,
+      "elapsed_ms": 522.22
+    },
+    {
+      "question": "How many returned orders in West?",
+      "expected_sql": "SELECT count(*) FROM orders WHERE status='returned' AND region='West'",
+      "sql": "SELECT COUNT(*) FROM orders WHERE region = 'West' AND status = 'returned'",
+      "correct": true,
+      "eval_count": 23,
+      "eval_duration_ns": 420153000,
+      "load_duration_ns": 759917,
+      "elapsed_ms": 482.14
+    },
+    {
+      "question": "Count distinct regions.",
+      "expected_sql": "SELECT count(DISTINCT region) FROM orders",
+      "sql": "SELECT DISTINCT region FROM orders",
+      "correct": false,
+      "eval_count": 14,
+      "eval_duration_ns": 244220000,
+      "load_duration_ns": 760084,
+      "elapsed_ms": 303.87
+    },
+    {
+      "question": "Earliest order date?",
+      "expected_sql": "SELECT min(order_date) FROM orders",
+      "sql": "SELECT MIN(order_date) FROM orders",
+      "correct": true,
+      "eval_count": 16,
+      "eval_duration_ns": 291126000,
+      "load_duration_ns": 675084,
+      "elapsed_ms": 346.87
+    },
+    {
+      "question": "Latest order date?",
+      "expected_sql": "SELECT max(order_date) FROM orders",
+      "sql": "SELECT MAX(order_date) FROM orders",
+      "correct": true,
+      "eval_count": 16,
+      "eval_duration_ns": 335089000,
+      "load_duration_ns": 513333,
+      "elapsed_ms": 394.28
+    },
+    {
+      "question": "Count orders in August 2026.",
+      "expected_sql": "SELECT count(*) FROM orders WHERE order_date >= DATE '2026-08-01' AND order_date < DATE '2026-09-01'",
+      "sql": "SELECT COUNT(*) FROM orders WHERE order_date >= '2026-08-01' AND order_date < '2026-08-31'",
+      "correct": false,
+      "eval_count": 37,
+      "eval_duration_ns": 691346000,
+      "load_duration_ns": 970375,
+      "elapsed_ms": 756.37
+    },
+    {
+      "question": "Sum amount by calendar month, return month as YYYY-MM text.",
+      "expected_sql": "SELECT strftime(order_date,'%Y-%m'),sum(amount) FROM orders GROUP BY 1",
+      "sql": "SELECT SUM(amount) AS total FROM orders WHERE EXTRACT(MONTH FROM order_date) = EXTRACT(MONTH FROM CURRENT_DATE) AND EXTRACT(YEAR FROM order_date) = EXTRACT(YEAR FROM CURRENT_DATE)",
+      "correct": false,
+      "eval_count": 54,
+      "eval_duration_ns": 1184480000,
+      "load_duration_ns": 725750,
+      "elapsed_ms": 1244.47
+    },
+    {
+      "question": "Return IDs of the three highest amount orders, breaking ties by lowest ID.",
+      "expected_sql": "SELECT id FROM orders ORDER BY amount DESC,id LIMIT 3",
+      "sql": "SELECT id FROM orders ORDER BY amount DESC LIMIT 3",
+      "correct": true,
+      "eval_count": 20,
+      "eval_duration_ns": 373005000,
+      "load_duration_ns": 928334,
+      "elapsed_ms": 441.94
+    },
+    {
+      "question": "How many orders have amount greater than 5?",
+      "expected_sql": "SELECT count(*) FROM orders WHERE amount>5",
+      "sql": "SELECT COUNT(*) FROM orders WHERE amount > 5",
+      "correct": true,
+      "eval_count": 16,
+      "eval_duration_ns": 379464000,
+      "load_duration_ns": 827834,
+      "elapsed_ms": 434.83
+    },
+    {
+      "question": "Average amount by status.",
+      "expected_sql": "SELECT status,avg(amount) FROM orders GROUP BY status",
+      "sql": "SELECT AVG(amount) AS avg_amount FROM orders WHERE status = 'completed'",
+      "correct": false,
+      "eval_count": 23,
+      "eval_duration_ns": 520895999,
+      "load_duration_ns": 465750,
+      "elapsed_ms": 578.86
+    },
+    {
+      "question": "Sum amount for completed West orders.",
+      "expected_sql": "SELECT sum(amount) FROM orders WHERE status='completed' AND region='West'",
+      "sql": "SELECT SUM(amount) FROM orders WHERE status = 'completed' AND region = 'West'",
+      "correct": true,
+      "eval_count": 26,
+      "eval_duration_ns": 489499000,
+      "load_duration_ns": 1399917,
+      "elapsed_ms": 545.85
+    }
+  ],
+  "correct": 9,
+  "total": 20
+}
