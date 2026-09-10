@@ -45,8 +45,8 @@ final class ResultChartView: NSView {
     var numbers: [Double] = []
     override var isFlipped: Bool { true }
     override func draw(_ dirtyRect: NSRect) {
-        NSColor.white.setFill(); dirtyRect.fill()
-        NSColor.separatorColor.setStroke()
+        QuelytTheme.canvas.setFill(); dirtyRect.fill()
+        QuelytTheme.line.setStroke()
         let border = NSBezierPath(rect: bounds.insetBy(dx: 0.5, dy: 0.5)); border.lineWidth = 1; border.stroke()
         guard kind == "bar" || kind == "line", numbers.count >= 2, numbers.count == labels.count else { return }
         let plot = NSRect(x: 36, y: 28, width: max(bounds.width - 48, 8), height: max(bounds.height - 54, 8))
@@ -54,12 +54,12 @@ final class ResultChartView: NSView {
         let high = max(0, max(numbers.max() ?? 1, low + 1))
         let span = high - low
         let count = CGFloat(numbers.count)
-        NSColor.separatorColor.setStroke()
+        QuelytTheme.lineStrong.setStroke()
         let axes = NSBezierPath(); axes.lineWidth = 1
         axes.move(to: NSPoint(x: plot.minX, y: plot.maxY)); axes.line(to: NSPoint(x: plot.maxX, y: plot.maxY))
         axes.move(to: NSPoint(x: plot.minX, y: plot.minY)); axes.line(to: NSPoint(x: plot.minX, y: plot.maxY))
         axes.stroke()
-        let teal = NSColor.systemTeal
+        let teal = QuelytTheme.success
         if kind == "bar" {
             let slot = plot.width / count
             let width = slot * 0.62
@@ -87,7 +87,7 @@ final class ResultChartView: NSView {
                 NSBezierPath(ovalIn: NSRect(x: x - 3, y: y - 3, width: 6, height: 6)).fill()
             }
         }
-        let caption: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 9), .foregroundColor: NSColor.secondaryLabelColor]
+        let caption: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 9), .foregroundColor: QuelytTheme.inkMuted]
         let slot = plot.width / count
         for (index, label) in labels.enumerated() {
             let text = String(label.prefix(12)) as NSString
@@ -99,7 +99,7 @@ final class ResultChartView: NSView {
         }
         (String(format: "%g", high) as NSString).draw(at: NSPoint(x: 4, y: plot.minY - 2), withAttributes: caption)
         let title = ((kind == "bar" ? "Bar" : "Line") + " chart · from this query") as NSString
-        title.draw(at: NSPoint(x: plot.minX, y: 6), withAttributes: [.font: NSFont.systemFont(ofSize: 11, weight: .medium), .foregroundColor: NSColor.secondaryLabelColor])
+        title.draw(at: NSPoint(x: plot.minX, y: 6), withAttributes: [.font: NSFont.systemFont(ofSize: 11, weight: .medium), .foregroundColor: QuelytTheme.inkMuted])
     }
 }
 
@@ -156,35 +156,36 @@ final class QuelytApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, N
 
     func label(_ text: String, size: CGFloat = 12, weight: NSFont.Weight = .regular, color: NSColor = .labelColor) -> NSTextField {
         let view = NSTextField(labelWithString: text)
-        view.font = .systemFont(ofSize: size, weight: weight); view.textColor = color
+        view.font = .systemFont(ofSize: size, weight: weight); view.textColor = color == .labelColor ? QuelytTheme.ink : color
         return view
     }
     func applicationDidFinishLaunching(_ notification: Notification) {
-        NSApp.appearance = NSAppearance(named: .aqua)
+        NSApp.appearance = NSAppearance(named: .darkAqua)
         setupMenu()
         wireSidebar()
         window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1180, height: 790), styleMask: [.titled, .closable, .resizable, .miniaturizable], backing: .buffered, defer: false)
         window.title = "Quelyt"; window.minSize = NSSize(width: 980, height: 720)
-        window.backgroundColor = NSColor(calibratedWhite: 0.975, alpha: 1)
-        let paper = window.backgroundColor.cgColor
+        QuelytTheme.applyChrome(to: window)
         let contentRoot = DatasetDropView()
-        contentRoot.wantsLayer = true; contentRoot.layer?.backgroundColor = paper
+        contentRoot.wantsLayer = true; contentRoot.layer?.backgroundColor = QuelytTheme.canvas.cgColor
         contentRoot.openFile = { [weak self] url in self?.openDataset(url) }
         if let drop = sidebar.view as? DatasetDropView { drop.openFile = { [weak self] url in self?.openDataset(url) } }
         let content = NSStackView(); content.orientation = .vertical; content.alignment = .leading; content.spacing = 10
         content.translatesAutoresizingMaskIntoConstraints = false
         content.edgeInsets = NSEdgeInsets(top: 12, left: 16, bottom: 10, right: 16)
         let queryTitle = label("Query", size: 12, weight: .semibold)
-        let queryHint = label("SQL · ⌘ Return to run · Esc to complete", size: 10, color: .secondaryLabelColor)
+        let queryHint = label("SQL · ⌘ Return to run · Esc to complete", size: 10, color: QuelytTheme.inkMuted)
         let queryHeader = NSStackView(views: [queryTitle, queryHint]); queryHeader.spacing = 12
         editor.font = .monospacedSystemFont(ofSize: 13, weight: .regular); editor.string = "-- Open a CSV or Parquet file to start.\n-- Your table will be available as dataset."
         editor.isRichText = false; editor.allowsUndo = true; editor.isAutomaticQuoteSubstitutionEnabled = false; editor.isAutomaticDashSubstitutionEnabled = false; editor.isAutomaticTextReplacementEnabled = false
+        editor.drawsBackground = true; editor.backgroundColor = QuelytTheme.canvas; editor.insertionPointColor = QuelytTheme.ink
         editor.textContainerInset = NSSize(width: 15, height: 14); editor.setAccessibilityLabel("SQL query")
-        let editorScroll = NSScrollView(); editorScroll.documentView = editor; editorScroll.hasVerticalScroller = true
-        editorScroll.wantsLayer = true; editorScroll.layer?.cornerRadius = 4; editorScroll.layer?.borderWidth = 1; editorScroll.layer?.borderColor = NSColor(calibratedWhite: 0.87, alpha: 1).cgColor; editorScroll.layer?.masksToBounds = true
+        let editorScroll = NSScrollView(); editorScroll.documentView = editor; editorScroll.hasVerticalScroller = true; editorScroll.drawsBackground = true; editorScroll.backgroundColor = QuelytTheme.canvas
+        QuelytTheme.hairlineLayer(editorScroll)
         editor.minSize = NSSize(width: 0, height: 160); editor.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude); editor.isVerticallyResizable = true; editor.autoresizingMask = [.width]; editor.textContainer?.widthTracksTextView = true
         editorScroll.heightAnchor.constraint(equalToConstant: 165).isActive = true
-        table.delegate = self; table.dataSource = self; table.allowsMultipleSelection = true; table.rowHeight = 29; table.usesAlternatingRowBackgroundColors = true; table.columnAutoresizingStyle = .noColumnAutoresizing; table.setAccessibilityLabel("Query results")
+        table.delegate = self; table.dataSource = self; table.allowsMultipleSelection = true; table.rowHeight = QuelytTheme.row; table.usesAlternatingRowBackgroundColors = false; table.columnAutoresizingStyle = .noColumnAutoresizing; table.setAccessibilityLabel("Query results")
+        table.backgroundColor = QuelytTheme.canvas; table.gridStyleMask = .solidVerticalGridLineMask; table.gridColor = QuelytTheme.line
         table.selectedText = { [weak self] in
             guard let self = self, !self.table.selectedRowIndexes.isEmpty else { return nil }
             func quote(_ text: String) -> String {
@@ -196,19 +197,19 @@ final class QuelytApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, N
             return ([header] + selected).joined(separator: "\n")
         }
         let grid = resultScroll; grid.documentView = table; grid.hasVerticalScroller = true; grid.hasHorizontalScroller = true
-        resultContainer.wantsLayer = true; resultContainer.layer?.backgroundColor = NSColor.white.cgColor; resultContainer.layer?.cornerRadius = 4; resultContainer.layer?.borderWidth = 1; resultContainer.layer?.borderColor = NSColor(calibratedWhite: 0.87, alpha: 1).cgColor; resultContainer.layer?.masksToBounds = true
+        resultContainer.wantsLayer = true; resultContainer.layer?.backgroundColor = QuelytTheme.canvas.cgColor; resultContainer.layer?.cornerRadius = QuelytTheme.radiusSm; resultContainer.layer?.borderWidth = QuelytTheme.hairline; resultContainer.layer?.borderColor = QuelytTheme.line.cgColor; resultContainer.layer?.masksToBounds = true
         resultContainer.addSubview(grid); grid.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([grid.leadingAnchor.constraint(equalTo: resultContainer.leadingAnchor),grid.trailingAnchor.constraint(equalTo: resultContainer.trailingAnchor),grid.topAnchor.constraint(equalTo: resultContainer.topAnchor),grid.bottomAnchor.constraint(equalTo: resultContainer.bottomAnchor)])
         statePanel.orientation = .vertical; statePanel.alignment = .centerX; statePanel.spacing = 12; statePanel.translatesAutoresizingMaskIntoConstraints = false
-        stateIcon.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 27, weight: .light); stateIcon.contentTintColor = NSColor(calibratedRed: 0.33, green: 0.54, blue: 0.49, alpha: 1)
-        stateTitle.font = .systemFont(ofSize: 18, weight: .medium); stateDescription.font = .systemFont(ofSize: 12); stateDescription.textColor = .secondaryLabelColor; stateDescription.alignment = .center; stateDescription.maximumNumberOfLines = 7
+        stateIcon.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 27, weight: .light); stateIcon.contentTintColor = QuelytTheme.brand
+        stateTitle.font = .systemFont(ofSize: 18, weight: .medium); stateTitle.textColor = QuelytTheme.ink; stateDescription.font = .systemFont(ofSize: 12); stateDescription.textColor = QuelytTheme.inkMuted; stateDescription.alignment = .center; stateDescription.maximumNumberOfLines = 7
         stateOpenButton.target = self; stateOpenButton.action = #selector(openPanel); stateOpenButton.bezelStyle = .rounded
         stateSpinner.style = .spinning; stateSpinner.controlSize = .small; stateSpinner.isDisplayedWhenStopped = false
         for view in [stateIcon,stateSpinner,stateTitle,stateDescription,stateOpenButton] { statePanel.addArrangedSubview(view) }
         stateDescription.widthAnchor.constraint(equalToConstant: 350).isActive = true
         resultContainer.addSubview(statePanel)
         NSLayoutConstraint.activate([statePanel.centerXAnchor.constraint(equalTo: resultContainer.centerXAnchor),statePanel.centerYAnchor.constraint(equalTo: resultContainer.centerYAnchor)])
-        resultSummary.font = .systemFont(ofSize: 10); resultSummary.textColor = .secondaryLabelColor
+        resultSummary.font = .systemFont(ofSize: 11); resultSummary.textColor = QuelytTheme.inkMuted
         resultFilter.placeholderString = "Filter returned rows"; resultFilter.target = self; resultFilter.action = #selector(filterResults); resultFilter.sendsSearchStringImmediately = true; resultFilter.setAccessibilityLabel("Filter returned results")
         resultFilter.widthAnchor.constraint(equalToConstant: 170).isActive = true
         chartToggle.target = self; chartToggle.action = #selector(toggleChart); chartToggle.state = .on; chartToggle.isEnabled = false
@@ -216,7 +217,9 @@ final class QuelytApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, N
         let resultHeader = NSStackView(views: [label("Results", size: 12, weight: .semibold), resultSummary, resultFilter, chartToggle, exportButton]); resultHeader.spacing = 8
         chartHeight = chartView.heightAnchor.constraint(equalToConstant: 0); chartHeight.isActive = true
         chartView.isHidden = true
-        status.font = .systemFont(ofSize: 11); status.textColor = .secondaryLabelColor
+        QuelytTheme.hairlineLayer(chartView)
+        resultScroll.drawsBackground = true; resultScroll.backgroundColor = QuelytTheme.canvas
+        status.font = .systemFont(ofSize: 11); status.textColor = QuelytTheme.inkMuted
         for view in [queryHeader, editorScroll, resultHeader, resultContainer, chartView, status] { content.addArrangedSubview(view) }
         for view in [editorScroll, resultContainer, chartView, status] { view.widthAnchor.constraint(equalTo: content.widthAnchor, constant: -32).isActive = true }
         contentRoot.addSubview(content)
@@ -229,8 +232,8 @@ final class QuelytApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, N
         let contentController = NSViewController(); contentController.view = contentRoot
         split = NSSplitViewController()
         let sidebarItem = NSSplitViewItem(sidebarWithViewController: sidebar)
-        sidebarItem.minimumThickness = 180
-        sidebarItem.maximumThickness = 360
+        sidebarItem.minimumThickness = 220
+        sidebarItem.maximumThickness = 340
         sidebarItem.canCollapse = true
         let contentItem = NSSplitViewItem(viewController: contentController)
         contentItem.minimumThickness = 520
@@ -239,11 +242,11 @@ final class QuelytApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, N
         window.contentViewController = split
         let toolbar = NSToolbar(identifier: "dev.quelyt.desktop.toolbar")
         toolbar.delegate = self
-        toolbar.displayMode = .iconAndLabel
+        toolbar.displayMode = .iconOnly
         toolbar.allowsUserCustomization = false
         window.toolbar = toolbar
         window.center(); window.makeKeyAndOrderFront(nil)
-        split.splitView.setPosition(240, ofDividerAt: 0)
+        split.splitView.setPosition(268, ofDividerAt: 0)
         setBusy(false)
         showState("Open a dataset", message: "Choose a CSV or Parquet file, or drop one onto the workspace. Your data stays on this Mac.", symbol: "tablecells", canOpen: true)
         NSApp.activate(ignoringOtherApps: true); window.makeFirstResponder(editor)
@@ -274,6 +277,21 @@ final class QuelytApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, N
             }
         }
         sidebar.onRerunTrace = { [weak self] trace in self?.runHistory(trace) }
+        sidebar.onNavigate = { [weak self] destination in
+            guard let self = self, self.process == nil else { return }
+            switch destination {
+            case .connections:
+                self.status.stringValue = "Remote connections are not available. Open a local CSV or Parquet file from Databases."
+            case .ai:
+                self.status.stringValue = "Talk to Data stays out of the app until evaluation gates pass. No model calls are made."
+            case .settings:
+                self.status.stringValue = "Local workspace. No account. No network connection."
+            case .history:
+                self.status.stringValue = "Click a history row to load SQL. Double-click to rerun."
+            case .databases:
+                break
+            }
+        }
     }
     func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
         [.toggleSidebar, .openDataset, .runQuery, .cancelQuery, .profileDataset, .copyRows, .flexibleSpace, .localBadge]
@@ -292,7 +310,8 @@ final class QuelytApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, N
             button.bezelStyle = .rounded
             button.image = NSImage(systemSymbolName: "play.fill", accessibilityDescription: "Run query")
             button.imagePosition = .imageLeading
-            button.bezelColor = NSColor(calibratedRed: 0.18, green: 0.42, blue: 0.37, alpha: 1)
+            button.bezelColor = QuelytTheme.brand
+            button.contentTintColor = .white
             runItem = NSToolbarItem(itemIdentifier: .runQuery)
             runItem.label = "Run"
             runItem.paletteLabel = "Run"
@@ -311,7 +330,7 @@ final class QuelytApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, N
             return copyItem
         case .localBadge:
             let item = NSToolbarItem(itemIdentifier: .localBadge)
-            let badge = label("Local · Read only", size: 11, weight: .medium, color: NSColor(calibratedRed: 0.2, green: 0.43, blue: 0.38, alpha: 1))
+            let badge = label("Local · Read only", size: 11, weight: .medium, color: QuelytTheme.success)
             item.view = badge
             item.label = "Local"
             return item
@@ -664,7 +683,7 @@ final class QuelytApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, N
         let reuse = NSUserInterfaceItemIdentifier("cell")
         let field = tableView.makeView(withIdentifier: reuse, owner: self) as? NSTextField ?? NSTextField(labelWithString: "")
         field.identifier = reuse; let value = rows[row][index]; field.stringValue = value is NSNull ? "NULL" : String(describing: value)
-        field.font = .monospacedSystemFont(ofSize: 12, weight: .regular); field.lineBreakMode = .byTruncatingTail; field.toolTip = field.stringValue
+        field.font = .monospacedSystemFont(ofSize: 12, weight: .regular); field.textColor = value is NSNull ? QuelytTheme.faint : QuelytTheme.ink; field.lineBreakMode = .byTruncatingTail; field.toolTip = field.stringValue
         return field
     }
     func tableViewSelectionDidChange(_ notification: Notification) {
@@ -807,6 +826,17 @@ final class QuelytApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, N
         let extras = (1...8).map { ["name": "file\($0).csv", "path": "/tmp/file\($0).csv"] }
         sidebar.setRecents(extras)
         check("recents_capped", sidebar.recentNames() == ["file1.csv", "file2.csv", "file3.csv", "file4.csv", "file5.csv", "file6.csv", "file7.csv"])
+        check("nav_default_databases", sidebar.selectedDestination == .databases)
+        sidebar.selectDestination(.connections)
+        check("nav_connections_unavailable", sidebar.selectedDestination == .connections && sidebar.showsUnavailable)
+        sidebar.selectDestination(.ai)
+        check("nav_ai_unavailable", sidebar.selectedDestination == .ai && sidebar.showsUnavailable)
+        sidebar.selectDestination(.history)
+        check("nav_history_selected", sidebar.selectedDestination == .history && !sidebar.showsUnavailable)
+        sidebar.selectDestination(.settings)
+        check("nav_settings_local", sidebar.selectedDestination == .settings && !sidebar.showsUnavailable)
+        sidebar.selectDestination(.databases)
+        check("nav_databases_restored", sidebar.selectedDestination == .databases)
         let item = split.splitViewItems[0]
         let restored = item.isCollapsed
         item.isCollapsed = true
@@ -852,7 +882,10 @@ final class QuelytApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, N
     }
     @objc func focusEditor() { window.makeFirstResponder(editor) }
     @objc func focusResults() { window.makeFirstResponder(table) }
-    @objc func focusHistory() { window.makeFirstResponder(sidebar.historyTable) }
+    @objc func focusHistory() {
+        sidebar.selectDestination(.history)
+        window.makeFirstResponder(sidebar.historyTable)
+    }
     @objc func toggleSidebar(_ sender: Any?) { split.toggleSidebar(sender) }
     @objc func completeSQL() { window.makeFirstResponder(editor); editor.complete(nil) }
     @objc func toggleChart() { setChartVisible(chartToggle.state == .on && chartView.kind != "none") }

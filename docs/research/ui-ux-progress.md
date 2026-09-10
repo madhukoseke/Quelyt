@@ -40,8 +40,78 @@ Final continuation verification: 31 Python tests, seven native UI regression che
 
 ## Implemented continuation — native control plane
 
-Working sessions now use a titled window and `NSToolbar` instead of the editorial hero. `NSSplitViewController` hosts a collapsible full-height sidebar (default ~240pt, **⌃B** or the toolbar sidebar button) and the SQL/results/chart data plane. Drop-on-window still opens one CSV/Parquet file.
+Working sessions now use a titled window and `NSToolbar` instead of the editorial hero. `NSSplitViewController` hosts a collapsible full-height sidebar (default ~268pt, **⌃B** or the toolbar sidebar button) and the SQL/results/chart data plane. Drop-on-window still opens one CSV/Parquet file.
 
-The sidebar owns dataset identity (name, format, row/column counts, source unchanged), up to seven recents from local history, a searchable column list, and history that fills leftover height. Clicking a column inserts the quoted identifier at the SQL caret. Profile statistics decorate the same column rows (`null % · distinct · min/max`) and survive later queries; generated profile SQL still lands in the editor. This is not VoiceOver, physical drag/drop, App Sandbox, or a relocatable runtime.
+The sidebar is a dark product navigation rail (Dokploy/Databricks-style), not a stacked inspector. Explore: **Databases** (open, recents, searchable columns) and **History**. Workspace: **Connections** and **AI** show not-yet-available copy; **Settings** states local-only facts. Selecting a row switches sidebar context only; SQL/results stay in the main pane. Clicking a column still inserts the quoted identifier. Profile statistics decorate Databases column rows and survive later queries. No fake cloud orgs, Docker, Swarm, remote connections, or AI chat.
 
-Native build succeeds. 31 Python tests pass. Twelve native UI regression checks pass, including quoted column insert, profile-stat retention, column filter, recents cap and sidebar collapse. Four native smoke checks pass on the million-row Parquet fixture. Loaded layout inspected via own-view capture.
+The developer shell is a cohesive dark studio mapped from [DB Pro](https://www.dbpro.app/) dark CSS tokens and product screenshots (tokens below). SQL/results no longer sit on a light paper pane.
+
+Native build succeeds. 31 Python tests pass. Native UI regression checks include quoted column insert, profile-stat retention, column filter, recents cap, nav destination selection, gated Connections/AI states, and sidebar collapse. Four native smoke checks pass on the million-row Parquet fixture.
+
+## Design tokens — DB Pro dark studio (2026-09-10)
+
+Extracted from live CSS (`:root` / `.dark` on dbpro.app) plus product screenshots (`editor-feature-1`, `data-browser-feature-1`, `inspector-hero`). Marketing copy and images are not stored in this repo. AppKit maps Geist/IBM Plex to SF Pro + SF Mono.
+
+Source notes: the public site defaults to a warmer light theme (`#f5f4f3`, brand `#2563eb`). Dark mode and the desktop app chrome are near-black navy, not OLED-pure black. Primary accent is **blue**, not teal. Teal `#00bb7f` is used for table/success marks; amber `#f99c00` for dirty cells; red `#ff6568` for diffs/errors.
+
+### Color
+
+| Token | Hex | AppKit use |
+| --- | --- | --- |
+| canvas / background | `#0a0d14` | Window, editor, grid |
+| surface / sidebar / card | `#11151f` | Nav rail, elevated chrome |
+| muted / accent / selected pill | `#1a2030` | Nav selection, hover, header chip |
+| input | `#2a3040` | Search/input fill |
+| line / border | `#222734` | Hairline borders |
+| line-strong | `#333a49` | Chart axes, stronger rules |
+| ink / foreground | `#e7e9ee` | Primary text |
+| ink-muted | `#9aa2b1` | Secondary labels |
+| faint | `#69707e` | Section headers, comments, NULL |
+| brand / primary / ring | `#3b82f6` | Run button, focus, empty-state icon |
+| brand-hover / SQL keyword | `#60a5fa` | Keyword highlight, hover |
+| brand-deep | `#1e3a8a` | Pressed/deep brand |
+| success / chart-2 | `#00bb7f` | Local badge, chart series, strings |
+| warn / chart-3 | `#f99c00` | Numeric literals |
+| danger | `#ff6568` | Errors (status copy) |
+
+Light-theme site tokens (`#f5f4f3`, `#2563eb`, sidebar `#fff`) are documented for contrast only; the developer app does not use them.
+
+### Typography
+
+| Role | DB Pro | Quelyt AppKit |
+| --- | --- | --- |
+| UI | Geist Sans / IBM Plex Sans, 400–600 | SF Pro, 11–13pt UI, 12pt semibold section titles |
+| Marketing display | IBM Plex Serif | Not used in-app |
+| SQL / grid | Geist Mono | SF Mono 13pt editor, 12pt cells |
+| Weights | 400 / 500 / 600 / 700 | regular / medium / semibold |
+| Section labels | ~11pt muted | 11pt medium, faint |
+
+### Iconography
+
+Outline Lucide-style marks at ~13–16px. Quelyt uses SF Symbols, medium weight: `cylinder.split.1x2`, `clock`, `link`, `gearshape`, `sparkles`, `play.fill`. No filled candy icons.
+
+### Spacing, radius, elevation
+
+| Measure | Value |
+| --- | --- |
+| Radius (CSS `--radius`) | 10pt |
+| Selected pill | 8pt |
+| Hairline | 1pt `#222734` |
+| Sidebar default | ~268pt (220–340) |
+| Nav row | 34pt |
+| Result row | 32pt |
+| Editor inset | 15×14 |
+| Elevation | Flat surfaces + hairline, no drop shadows |
+
+### Motion
+
+Selected pill and hover fill `#1a2030` (hover at 55% alpha). No bounce. Tracking-area hover on nav rows. Focus uses brand ring via `darkAqua`.
+
+### Product chrome observed (screenshots)
+
+- Unified dark titlebar; icon-only tools; blue primary action (`Run Query` / `Insert`).
+- Thin left rail + schema list with selected row wash.
+- Spreadsheet grid: same canvas as editor, vertical hairlines, type glyphs in headers.
+- SQL: blue keywords, green table marks in autocomplete, dark completion card.
+
+Quelyt does not copy tabs, ER diagrams, inline row editing, pending-change inspector, or remote connections. Remaining gaps vs DB Pro: no command palette, no tab strip, no type glyphs in grid headers, no Lucide icon set (SF Symbols instead), no Geist webfonts (system fonts), no inspector pane.

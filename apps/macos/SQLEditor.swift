@@ -25,22 +25,23 @@ final class SQLEditor: NSTextView {
         guard let storage = textStorage else { return }
         let full = NSRange(location: 0, length: storage.length)
         storage.beginEditing()
-        storage.addAttributes([.foregroundColor: NSColor.labelColor, .font: NSFont.monospacedSystemFont(ofSize: 13, weight: .regular)], range: full)
+        storage.addAttributes([.foregroundColor: QuelytTheme.ink, .font: NSFont.monospacedSystemFont(ofSize: 13, weight: .regular)], range: full)
         // One tokenizer protects quoted strings and comments from keyword highlighting.
         let pattern = "--[^\\n]*|/\\*[\\s\\S]*?\\*/|'(?:''|[^'])*'|\"(?:\"\"|[^\"])*\"|\\b[A-Za-z_][A-Za-z_0-9]*\\b|\\b[0-9]+(?:\\.[0-9]+)?\\b"
         if let regex = try? NSRegularExpression(pattern: pattern) {
             for match in regex.matches(in: string, range: full) {
                 let token = (string as NSString).substring(with: match.range)
                 let color: NSColor
-                if token.hasPrefix("--") || token.hasPrefix("/*") { color = .secondaryLabelColor }
-                else if token.hasPrefix("'") { color = .systemBrown }
-                else if keywords.contains(token.uppercased()) { color = NSColor(calibratedRed: 0.16, green: 0.43, blue: 0.37, alpha: 1) }
+                if token.hasPrefix("--") || token.hasPrefix("/*") { color = QuelytTheme.faint }
+                else if token.hasPrefix("'") { color = QuelytTheme.string }
+                else if token.first?.isNumber == true { color = QuelytTheme.warn }
+                else if keywords.contains(token.uppercased()) { color = QuelytTheme.keyword }
                 else { continue }
                 storage.addAttribute(.foregroundColor, value: color, range: match.range)
             }
         }
         storage.endEditing()
-        typingAttributes = [.font: NSFont.monospacedSystemFont(ofSize: 13, weight: .regular), .foregroundColor: NSColor.labelColor]
+        typingAttributes = [.font: NSFont.monospacedSystemFont(ofSize: 13, weight: .regular), .foregroundColor: QuelytTheme.ink]
     }
     override func completions(forPartialWordRange charRange: NSRange, indexOfSelectedItem index: UnsafeMutablePointer<Int>) -> [String]? {
         let prefix = (string as NSString).substring(with: charRange)
