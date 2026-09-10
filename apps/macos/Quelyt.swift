@@ -2,8 +2,16 @@ import AppKit
 import UniformTypeIdentifiers
 import Darwin
 
-final class DatasetDropView: NSStackView {
+final class DatasetDropView: NSView {
     var openFile: ((URL) -> Void)?
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        registerForDraggedTypes([.fileURL])
+    }
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        registerForDraggedTypes([.fileURL])
+    }
     override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
         sender.draggingPasteboard.canReadObject(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) ? .copy : []
     }
@@ -11,6 +19,15 @@ final class DatasetDropView: NSStackView {
         guard let urls = sender.draggingPasteboard.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL], urls.count == 1 else { return false }
         openFile?(urls[0]); return true
     }
+}
+
+extension NSToolbarItem.Identifier {
+    static let openDataset = NSToolbarItem.Identifier("openDataset")
+    static let runQuery = NSToolbarItem.Identifier("runQuery")
+    static let cancelQuery = NSToolbarItem.Identifier("cancelQuery")
+    static let profileDataset = NSToolbarItem.Identifier("profileDataset")
+    static let copyRows = NSToolbarItem.Identifier("copyRows")
+    static let localBadge = NSToolbarItem.Identifier("localBadge")
 }
 
 final class ResultsTableView: NSTableView {
@@ -86,21 +103,21 @@ final class ResultChartView: NSView {
     }
 }
 
-final class QuelytApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, NSTableViewDelegate {
+final class QuelytApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, NSTableViewDelegate, NSToolbarDelegate {
     var window: NSWindow!
     let editor = SQLEditor()
     let table = ResultsTableView()
-    let heading = NSTextField(labelWithString: "Explore your data. Locally.")
-    let detail = NSTextField(labelWithString: "Open or drop a CSV / Parquet file to begin.")
-    let status = NSTextField(wrappingLabelWithString: "Your data stays on this Mac. No account. No network connection.")
-    let schema = NSTextView()
-    let runButton = NSButton(title: "Run query", target: nil, action: #selector(runQuery))
-    let cancelButton = NSButton(title: "Cancel", target: nil, action: #selector(cancelQuery))
-    let profileButton = NSButton(title: "Profile dataset", target: nil, action: #selector(profile))
+    let status = NSTextField(wrappingLabelWithString: "Open a dataset to run a query.")
+    let sidebar = WorkspaceSidebar()
+    var split: NSSplitViewController!
+    var runItem: NSToolbarItem!
+    var cancelItem: NSToolbarItem!
+    var profileItem: NSToolbarItem!
+    var copyItem: NSToolbarItem!
     let chartView = ResultChartView()
     var chartHeight: NSLayoutConstraint!
-    let copyButton = NSButton(title: "Copy rows", target: nil, action: nil)
     var lastResponse: [String: Any]?
+    var lastResponseData: Data?
     var allRows: [[Any]] = []
     let resultFilter = NSSearchField()
     let chartToggle = NSButton(checkboxWithTitle: "Chart", target: nil, action: nil)
@@ -130,14 +147,11 @@ final class QuelytApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, N
     var aggregateTimes: [Double] = []
     var compareWriteRejected = false
     var compareCancelled = false
-    let historyTable = NSTableView()
-    var traces: [[String: Any]] = []
     var recentMenu: NSMenu!
-    var reloadingHistory = false
     let workspace = Bundle.main.object(forInfoDictionaryKey: "QuelytWorkspace") as? String ?? FileManager.default.currentDirectoryPath
 
     func skipHistory() -> Bool {
-        compareOutput() != nil || CommandLine.arguments.contains("--smoke-test") || ProcessInfo.processInfo.environment["QUELYT_BENCHMARK"] == "1"
+        compareOutput() != nil || CommandLine.arguments.contains("--smoke-test") || CommandLine.arguments.contains("--ui-checks") || ProcessInfo.processInfo.environment["QUELYT_BENCHMARK"] == "1"
     }
 
     func label(_ text: String, size: CGFloat = 12, weight: NSFont.Weight = .regular, color: NSColor = .labelColor) -> NSTextField {
@@ -148,48 +162,18 @@ final class QuelytApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, N
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.appearance = NSAppearance(named: .aqua)
         setupMenu()
+        wireSidebar()
         window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1180, height: 790), styleMask: [.titled, .closable, .resizable, .miniaturizable], backing: .buffered, defer: false)
         window.title = "Quelyt"; window.minSize = NSSize(width: 980, height: 720)
-        window.titlebarAppearsTransparent = true; window.backgroundColor = NSColor(calibratedWhite: 0.975, alpha: 1)
-        let root = DatasetDropView(); root.orientation = .vertical; root.alignment = .leading; root.spacing = 15
-        root.wantsLayer = true; root.layer?.backgroundColor = window.backgroundColor.cgColor
-        root.edgeInsets = NSEdgeInsets(top: 20, left: 26, bottom: 18, right: 26)
-        root.registerForDraggedTypes([.fileURL]); root.openFile = { [weak self] url in self?.openDataset(url) }
-        let brand = label("QUELYT  /  LOCAL WORKSPACE", size: 10, weight: .semibold, color: .secondaryLabelColor)
-        heading.stringValue = "A place to explore your data"; heading.font = .systemFont(ofSize: 25, weight: .semibold)
-        detail.stringValue = "Open a dataset. Write a query. Follow the evidence."
-        detail.font = .systemFont(ofSize: 12); detail.textColor = .secondaryLabelColor; detail.lineBreakMode = .byTruncatingMiddle
-        let toolbar = NSStackView(); toolbar.orientation = .horizontal; toolbar.spacing = 9
-        let openButton = NSButton(title: "Open dataset…", target: self, action: #selector(openPanel))
-        openButton.image = NSImage(systemSymbolName: "folder", accessibilityDescription: nil); openButton.imagePosition = .imageLeading
-        runButton.target = self; runButton.image = NSImage(systemSymbolName: "play.fill", accessibilityDescription: nil); runButton.imagePosition = .imageLeading
-        runButton.keyEquivalent = "\r"; runButton.keyEquivalentModifierMask = .command
-        runButton.bezelColor = NSColor(calibratedRed: 0.18, green: 0.42, blue: 0.37, alpha: 1)
-        cancelButton.target = self; profileButton.target = self
-        copyButton.target = table; copyButton.action = #selector(ResultsTableView.copy(_:)); copyButton.image = NSImage(systemSymbolName: "doc.on.doc", accessibilityDescription: nil); copyButton.imagePosition = .imageLeading
-        copyButton.toolTip = "Copy selected result rows with headers (⌘C)"
-        for button in [openButton, runButton, cancelButton, profileButton, copyButton] { button.bezelStyle = .rounded; button.controlSize = .regular; toolbar.addArrangedSubview(button) }
-        let flexible = NSView(); flexible.setContentHuggingPriority(.defaultLow, for: .horizontal); toolbar.addArrangedSubview(flexible)
-        let badge = label("●  Local · Read only", size: 11, weight: .medium, color: NSColor(calibratedRed: 0.2, green: 0.43, blue: 0.38, alpha: 1)); toolbar.addArrangedSubview(badge)
-        let divider = NSBox(); divider.boxType = .separator
-        let body = NSStackView(); body.orientation = .horizontal; body.alignment = .top; body.spacing = 24
-        let sidebar = NSStackView(); sidebar.orientation = .vertical; sidebar.alignment = .leading; sidebar.spacing = 14
-        let schemaTitle = label("Columns", size: 12, weight: .semibold)
-        schema.frame = NSRect(x: 0, y: 0, width: 198, height: 500); schema.minSize = NSSize(width: 198, height: 0); schema.maxSize = NSSize(width: 198, height: CGFloat.greatestFiniteMagnitude)
-        schema.isVerticallyResizable = true; schema.autoresizingMask = [.width]; schema.textContainer?.widthTracksTextView = true; schema.textContainerInset = NSSize(width: 0, height: 0)
-        schema.isEditable = false; schema.font = .systemFont(ofSize: 12); schema.string = "Your dataset’s columns\nwill appear here."; schema.textColor = .secondaryLabelColor; schema.drawsBackground = false
-        let schemaScroll = NSScrollView(); schemaScroll.documentView = schema; schemaScroll.hasVerticalScroller = true; schemaScroll.drawsBackground = false
-        let sidebarNote = label("One dataset at a time.\nYour source stays unchanged.", size: 10, color: .tertiaryLabelColor)
-        sidebar.addArrangedSubview(schemaTitle); sidebar.addArrangedSubview(schemaScroll); sidebar.addArrangedSubview(label("Recent queries", size: 12, weight: .semibold))
-        historyTable.delegate = self; historyTable.dataSource = self; historyTable.headerView = nil; historyTable.rowHeight = 27
-        historyTable.target = self; historyTable.doubleAction = #selector(rerunHistory); historyTable.setAccessibilityLabel("Recent queries")
-        let historyColumn = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("history")); historyColumn.width = 190; historyTable.addTableColumn(historyColumn)
-        let historyScroll = NSScrollView(); historyScroll.documentView = historyTable; historyScroll.hasVerticalScroller = true; historyScroll.drawsBackground = false
-        sidebar.addArrangedSubview(historyScroll); historyScroll.widthAnchor.constraint(equalTo: sidebar.widthAnchor).isActive = true; historyScroll.heightAnchor.constraint(equalToConstant: 125).isActive = true
-        sidebar.addArrangedSubview(sidebarNote)
-        sidebar.widthAnchor.constraint(equalToConstant: 198).isActive = true
-        schemaScroll.widthAnchor.constraint(equalTo: sidebar.widthAnchor).isActive = true
+        window.backgroundColor = NSColor(calibratedWhite: 0.975, alpha: 1)
+        let paper = window.backgroundColor.cgColor
+        let contentRoot = DatasetDropView()
+        contentRoot.wantsLayer = true; contentRoot.layer?.backgroundColor = paper
+        contentRoot.openFile = { [weak self] url in self?.openDataset(url) }
+        if let drop = sidebar.view as? DatasetDropView { drop.openFile = { [weak self] url in self?.openDataset(url) } }
         let content = NSStackView(); content.orientation = .vertical; content.alignment = .leading; content.spacing = 10
+        content.translatesAutoresizingMaskIntoConstraints = false
+        content.edgeInsets = NSEdgeInsets(top: 12, left: 16, bottom: 10, right: 16)
         let queryTitle = label("Query", size: 12, weight: .semibold)
         let queryHint = label("SQL · ⌘ Return to run · Esc to complete", size: 10, color: .secondaryLabelColor)
         let queryHeader = NSStackView(views: [queryTitle, queryHint]); queryHeader.spacing = 12
@@ -197,7 +181,7 @@ final class QuelytApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, N
         editor.isRichText = false; editor.allowsUndo = true; editor.isAutomaticQuoteSubstitutionEnabled = false; editor.isAutomaticDashSubstitutionEnabled = false; editor.isAutomaticTextReplacementEnabled = false
         editor.textContainerInset = NSSize(width: 15, height: 14); editor.setAccessibilityLabel("SQL query")
         let editorScroll = NSScrollView(); editorScroll.documentView = editor; editorScroll.hasVerticalScroller = true
-        editorScroll.wantsLayer = true; editorScroll.layer?.cornerRadius = 7; editorScroll.layer?.borderWidth = 1; editorScroll.layer?.borderColor = NSColor(calibratedWhite: 0.87, alpha: 1).cgColor; editorScroll.layer?.masksToBounds = true
+        editorScroll.wantsLayer = true; editorScroll.layer?.cornerRadius = 4; editorScroll.layer?.borderWidth = 1; editorScroll.layer?.borderColor = NSColor(calibratedWhite: 0.87, alpha: 1).cgColor; editorScroll.layer?.masksToBounds = true
         editor.minSize = NSSize(width: 0, height: 160); editor.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude); editor.isVerticallyResizable = true; editor.autoresizingMask = [.width]; editor.textContainer?.widthTracksTextView = true
         editorScroll.heightAnchor.constraint(equalToConstant: 165).isActive = true
         table.delegate = self; table.dataSource = self; table.allowsMultipleSelection = true; table.rowHeight = 29; table.usesAlternatingRowBackgroundColors = true; table.columnAutoresizingStyle = .noColumnAutoresizing; table.setAccessibilityLabel("Query results")
@@ -212,7 +196,7 @@ final class QuelytApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, N
             return ([header] + selected).joined(separator: "\n")
         }
         let grid = resultScroll; grid.documentView = table; grid.hasVerticalScroller = true; grid.hasHorizontalScroller = true
-        resultContainer.wantsLayer = true; resultContainer.layer?.backgroundColor = NSColor.white.cgColor; resultContainer.layer?.cornerRadius = 7; resultContainer.layer?.borderWidth = 1; resultContainer.layer?.borderColor = NSColor(calibratedWhite: 0.87, alpha: 1).cgColor; resultContainer.layer?.masksToBounds = true
+        resultContainer.wantsLayer = true; resultContainer.layer?.backgroundColor = NSColor.white.cgColor; resultContainer.layer?.cornerRadius = 4; resultContainer.layer?.borderWidth = 1; resultContainer.layer?.borderColor = NSColor(calibratedWhite: 0.87, alpha: 1).cgColor; resultContainer.layer?.masksToBounds = true
         resultContainer.addSubview(grid); grid.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([grid.leadingAnchor.constraint(equalTo: resultContainer.leadingAnchor),grid.trailingAnchor.constraint(equalTo: resultContainer.trailingAnchor),grid.topAnchor.constraint(equalTo: resultContainer.topAnchor),grid.bottomAnchor.constraint(equalTo: resultContainer.bottomAnchor)])
         statePanel.orientation = .vertical; statePanel.alignment = .centerX; statePanel.spacing = 12; statePanel.translatesAutoresizingMaskIntoConstraints = false
@@ -232,23 +216,119 @@ final class QuelytApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, N
         let resultHeader = NSStackView(views: [label("Results", size: 12, weight: .semibold), resultSummary, resultFilter, chartToggle, exportButton]); resultHeader.spacing = 8
         chartHeight = chartView.heightAnchor.constraint(equalToConstant: 0); chartHeight.isActive = true
         chartView.isHidden = true
-        for view in [queryHeader, editorScroll, resultHeader, resultContainer, chartView] { content.addArrangedSubview(view) }
-        for view in [editorScroll, resultContainer, chartView] { view.widthAnchor.constraint(equalTo: content.widthAnchor).isActive = true }
-        body.addArrangedSubview(sidebar); body.addArrangedSubview(content)
-        content.widthAnchor.constraint(equalTo: body.widthAnchor, constant: -222).isActive = true
-        content.heightAnchor.constraint(equalTo: body.heightAnchor).isActive = true; sidebar.heightAnchor.constraint(equalTo: body.heightAnchor).isActive = true
-        status.font = .systemFont(ofSize: 11); status.textColor = .secondaryLabelColor; status.stringValue = "Local by default. No account or cloud connection required."
-        for view in [brand, heading, detail, toolbar, divider, body, status] { root.addArrangedSubview(view) }
-        for view in [detail, toolbar, divider, body, status] { view.widthAnchor.constraint(equalTo: root.widthAnchor, constant: -52).isActive = true }
-        window.contentView = root; window.center(); window.makeKeyAndOrderFront(nil); setBusy(false)
+        status.font = .systemFont(ofSize: 11); status.textColor = .secondaryLabelColor
+        for view in [queryHeader, editorScroll, resultHeader, resultContainer, chartView, status] { content.addArrangedSubview(view) }
+        for view in [editorScroll, resultContainer, chartView, status] { view.widthAnchor.constraint(equalTo: content.widthAnchor, constant: -32).isActive = true }
+        contentRoot.addSubview(content)
+        NSLayoutConstraint.activate([
+            content.leadingAnchor.constraint(equalTo: contentRoot.leadingAnchor),
+            content.trailingAnchor.constraint(equalTo: contentRoot.trailingAnchor),
+            content.topAnchor.constraint(equalTo: contentRoot.topAnchor),
+            content.bottomAnchor.constraint(equalTo: contentRoot.bottomAnchor)
+        ])
+        let contentController = NSViewController(); contentController.view = contentRoot
+        split = NSSplitViewController()
+        let sidebarItem = NSSplitViewItem(sidebarWithViewController: sidebar)
+        sidebarItem.minimumThickness = 180
+        sidebarItem.maximumThickness = 360
+        sidebarItem.canCollapse = true
+        let contentItem = NSSplitViewItem(viewController: contentController)
+        contentItem.minimumThickness = 520
+        split.addSplitViewItem(sidebarItem)
+        split.addSplitViewItem(contentItem)
+        window.contentViewController = split
+        let toolbar = NSToolbar(identifier: "dev.quelyt.desktop.toolbar")
+        toolbar.delegate = self
+        toolbar.displayMode = .iconAndLabel
+        toolbar.allowsUserCustomization = false
+        window.toolbar = toolbar
+        window.center(); window.makeKeyAndOrderFront(nil)
+        split.splitView.setPosition(240, ofDividerAt: 0)
+        setBusy(false)
         showState("Open a dataset", message: "Choose a CSV or Parquet file, or drop one onto the workspace. Your data stays on this Mac.", symbol: "tablecells", canOpen: true)
-        NSApp.activate(ignoringOtherApps: true); window.makeFirstResponder(openButton)
+        NSApp.activate(ignoringOtherApps: true); window.makeFirstResponder(editor)
         if CommandLine.arguments.count > 1 && !CommandLine.arguments[1].hasPrefix("--") { openDataset(URL(fileURLWithPath: CommandLine.arguments[1])) }
         if !skipHistory() {
             reloadHistory()
             if selectedURL == nil, !CommandLine.arguments.contains("--snapshot"), let last = lastReadableSource() { openDataset(last) }
         }
         capturePreview()
+        if let flag = CommandLine.arguments.firstIndex(of: "--ui-checks"), CommandLine.arguments.count > flag + 1 { runUIChecks(output: CommandLine.arguments[flag + 1]) }
+    }
+    func wireSidebar() {
+        sidebar.onOpen = { [weak self] in self?.openPanel() }
+        sidebar.onOpenRecent = { [weak self] path in
+            guard let self = self, self.process == nil else { return }
+            self.openDataset(URL(fileURLWithPath: path))
+        }
+        sidebar.onInsertColumn = { [weak self] name in
+            guard let self = self else { return }
+            self.window.makeFirstResponder(self.editor)
+            self.editor.insertIdentifier(name)
+        }
+        sidebar.onSelectTrace = { [weak self] trace in
+            guard let self = self, self.process == nil, let sql = trace["sql"] as? String else { return }
+            self.editor.string = sql
+            if let path = trace["path"] as? String, self.selectedURL?.path != path, ["csv", "parquet"].contains(URL(fileURLWithPath: path).pathExtension.lowercased()) {
+                self.status.stringValue = "History SQL loaded. Open that dataset to run it."
+            }
+        }
+        sidebar.onRerunTrace = { [weak self] trace in self?.runHistory(trace) }
+    }
+    func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
+        [.toggleSidebar, .openDataset, .runQuery, .cancelQuery, .profileDataset, .copyRows, .flexibleSpace, .localBadge]
+    }
+    func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
+        [.toggleSidebar, .openDataset, .runQuery, .cancelQuery, .profileDataset, .copyRows, .flexibleSpace, .localBadge]
+    }
+    func toolbar(_ toolbar: NSToolbar, itemForItemIdentifier itemIdentifier: NSToolbarItem.Identifier, willBeInsertedIntoToolbar flag: Bool) -> NSToolbarItem? {
+        switch itemIdentifier {
+        case .toggleSidebar:
+            return NSToolbarItem(itemIdentifier: .toggleSidebar)
+        case .openDataset:
+            return toolbarItem(.openDataset, title: "Open", symbol: "folder", action: #selector(openPanel), toolTip: "Open a CSV or Parquet file")
+        case .runQuery:
+            let button = NSButton(title: "Run", target: self, action: #selector(runQuery))
+            button.bezelStyle = .rounded
+            button.image = NSImage(systemSymbolName: "play.fill", accessibilityDescription: "Run query")
+            button.imagePosition = .imageLeading
+            button.bezelColor = NSColor(calibratedRed: 0.18, green: 0.42, blue: 0.37, alpha: 1)
+            runItem = NSToolbarItem(itemIdentifier: .runQuery)
+            runItem.label = "Run"
+            runItem.paletteLabel = "Run"
+            runItem.toolTip = "Run query (⌘ Return)"
+            runItem.view = button
+            return runItem
+        case .cancelQuery:
+            cancelItem = toolbarItem(.cancelQuery, title: "Cancel", symbol: "stop.fill", action: #selector(cancelQuery), toolTip: "Cancel the running query")
+            return cancelItem
+        case .profileDataset:
+            profileItem = toolbarItem(.profileDataset, title: "Profile", symbol: "chart.bar", action: #selector(profile), toolTip: "Profile dataset")
+            return profileItem
+        case .copyRows:
+            copyItem = toolbarItem(.copyRows, title: "Copy", symbol: "doc.on.doc", action: #selector(ResultsTableView.copy(_:)), toolTip: "Copy selected result rows with headers (⌘C)")
+            copyItem.target = table
+            return copyItem
+        case .localBadge:
+            let item = NSToolbarItem(itemIdentifier: .localBadge)
+            let badge = label("Local · Read only", size: 11, weight: .medium, color: NSColor(calibratedRed: 0.2, green: 0.43, blue: 0.38, alpha: 1))
+            item.view = badge
+            item.label = "Local"
+            return item
+        default:
+            return nil
+        }
+    }
+    func toolbarItem(_ identifier: NSToolbarItem.Identifier, title: String, symbol: String, action: Selector, toolTip: String) -> NSToolbarItem {
+        let item = NSToolbarItem(itemIdentifier: identifier)
+        item.label = title
+        item.paletteLabel = title
+        item.toolTip = toolTip
+        item.image = NSImage(systemSymbolName: symbol, accessibilityDescription: title)
+        item.action = action
+        item.target = self
+        item.isBordered = true
+        return item
     }
     func showState(_ title: String, message: String, symbol: String, canOpen: Bool = false, loading: Bool = false) {
         resultScroll.isHidden = true; statePanel.isHidden = false; stateTitle.stringValue = title; stateDescription.stringValue = message
@@ -257,21 +337,18 @@ final class QuelytApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, N
         stateSpinner.isHidden = !loading
         if loading { stateSpinner.startAnimation(nil) } else { stateSpinner.stopAnimation(nil) }
     }
-    func showSchema(_ fields: [[String: String]]) {
-        let text = NSMutableAttributedString()
-        for field in fields {
-            text.append(NSAttributedString(string: (field["name"] ?? "") + "\n", attributes: [.font: NSFont.systemFont(ofSize: 12, weight: .medium), .foregroundColor: NSColor.labelColor]))
-            text.append(NSAttributedString(string: (field["type"] ?? "") + "\n\n", attributes: [.font: NSFont.monospacedSystemFont(ofSize: 10, weight: .regular), .foregroundColor: NSColor.secondaryLabelColor]))
-        }
-        schema.textStorage?.setAttributedString(text)
-    }
     func capturePreview() {
         guard let flag = CommandLine.arguments.firstIndex(of: "--snapshot"), CommandLine.arguments.count > flag + 1 else { return }
         let output = CommandLine.arguments[flag + 1]
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
-            guard let view = self.window.contentView, let bitmap = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { return }
-            view.cacheDisplay(in: view.bounds, to: bitmap)
-            if let png = bitmap.representation(using: .png, properties: [:]) { try? png.write(to: URL(fileURLWithPath: output)) }
+            guard let view = self.window.contentView else { return }
+            view.layoutSubtreeIfNeeded()
+            view.displayIfNeeded()
+            let bounds = view.bounds
+            let pdf = view.dataWithPDF(inside: bounds)
+            let image = NSImage(data: pdf) ?? NSImage(size: bounds.size)
+            guard let tiff = image.tiffRepresentation, let bitmap = NSBitmapImageRep(data: tiff), let png = bitmap.representation(using: .png, properties: [:]) else { return }
+            try? png.write(to: URL(fileURLWithPath: output))
         }
     }
     
@@ -289,7 +366,11 @@ final class QuelytApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, N
         for (title, selector, key) in [("Undo", "undo:", "z"), ("Cut", "cut:", "x"), ("Copy", "copy:", "c"), ("Paste", "paste:", "v"), ("Select All", "selectAll:", "a")] { edit.addItem(withTitle: title, action: Selector(selector), keyEquivalent: key) }
         for (title, action, key) in [("Save Query…", #selector(saveQuery), "s"), ("Open Query…", #selector(loadQuery), ""), ("Export Returned Results…", #selector(exportResults), "")] { let item = file.addItem(withTitle: title, action: action, keyEquivalent: key); item.target = self }
         let queryItem = NSMenuItem(); main.addItem(queryItem); let queryMenu = NSMenu(title: "Workspace"); queryItem.submenu = queryMenu
+        let run = queryMenu.addItem(withTitle: "Run Query", action: #selector(runQuery), keyEquivalent: "\r"); run.target = self; run.keyEquivalentModifierMask = .command
         for (title, action, key) in [("Focus SQL Editor", #selector(focusEditor), "1"), ("Focus Results", #selector(focusResults), "2"), ("Focus History", #selector(focusHistory), "3"), ("Complete SQL", #selector(completeSQL), ""), ("Run Selected History Query", #selector(rerunHistory), "")] { let item = queryMenu.addItem(withTitle: title, action: action, keyEquivalent: key); item.target = self }
+        let viewItem = NSMenuItem(); main.addItem(viewItem); let view = NSMenu(title: "View"); viewItem.submenu = view
+        let sidebarItem = view.addItem(withTitle: "Hide Sidebar", action: #selector(toggleSidebar(_:)), keyEquivalent: "b")
+        sidebarItem.target = self; sidebarItem.keyEquivalentModifierMask = .control
         NSApp.mainMenu = main
     }
 
@@ -305,13 +386,21 @@ final class QuelytApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, N
         guard process == nil else { return }
         guard ["csv", "parquet"].contains(url.pathExtension.lowercased()) else { status.stringValue = "Choose one CSV or Parquet file."; return }
         openingDataset = true
-        selectedURL = url; heading.stringValue = url.lastPathComponent
-        detail.stringValue = "Temporary snapshot · source file stays unchanged"
-        editor.string = sql ?? "SELECT *\nFROM dataset\nLIMIT 200;"; schema.string = "Loading schema…"
+        selectedURL = url
+        window.title = url.lastPathComponent
+        sidebar.resetColumns()
+        sidebar.setDataset(url: url, rows: nil, columns: nil)
+        editor.string = sql ?? "SELECT *\nFROM dataset\nLIMIT 200;"
         runQuery()
     }
     func setBusy(_ busy: Bool) {
-        runButton.isEnabled = !busy && selectedURL != nil; profileButton.isEnabled = !busy && selectedURL != nil; cancelButton.isEnabled = busy; editor.isEditable = !busy; copyButton.isEnabled = !busy && !table.selectedRowIndexes.isEmpty
+        let canRun = !busy && selectedURL != nil
+        runItem?.isEnabled = canRun
+        (runItem?.view as? NSButton)?.isEnabled = canRun
+        profileItem?.isEnabled = canRun
+        cancelItem?.isEnabled = busy
+        editor.isEditable = !busy
+        copyItem?.isEnabled = !busy && !table.selectedRowIndexes.isEmpty
     }
     @objc func profile() {
         guard let url = selectedURL else { return }
@@ -336,7 +425,7 @@ final class QuelytApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, N
         p.environment = ["PATH": "/usr/bin:/bin", "PYTHONIOENCODING": "utf-8", "PYTHONDONTWRITEBYTECODE": "1"]
         let stdin = Pipe(); let stdout = Pipe(); let stderr = Pipe(); p.standardInput = stdin; p.standardOutput = stdout; p.standardError = stderr
         let id = UUID(); activeID = id; cancelled = false; timedOut = false
-        lastResponse = nil; allRows = []; resultFilter.stringValue = ""; resultFilter.isEnabled = false; exportButton.isEnabled = false; chartToggle.isEnabled = false
+        lastResponse = nil; lastResponseData = nil; allRows = []; resultFilter.stringValue = ""; resultFilter.isEnabled = false; exportButton.isEnabled = false; chartToggle.isEnabled = false
         rows = []; table.reloadData(); setChartVisible(false); chartView.kind = "none"
         resultSummary.stringValue = ""
         showState(openingDataset ? "Opening dataset…" : "Running query…", message: "Working locally. You can cancel at any time.", symbol: "", loading: true)
@@ -366,21 +455,25 @@ final class QuelytApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, N
                 if self.cancelled { self.status.stringValue = "Cancelled. Your source file is unchanged."; self.setChartVisible(false); self.showState(self.cancelled ? "Query cancelled" : "Query stopped", message: self.status.stringValue, symbol: "exclamationmark.circle"); self.capturePreview(); return }
                 if self.timedOut { self.status.stringValue = "Stopped after the 30-second operation limit."; self.setChartVisible(false); self.showState(self.cancelled ? "Query cancelled" : "Query stopped", message: self.status.stringValue, symbol: "exclamationmark.circle"); self.capturePreview(); return }
                 guard let response = response else { self.status.stringValue = "Worker stopped without a result (exit \(p.terminationStatus)). Try a smaller query."; self.setChartVisible(false); self.showState(self.cancelled ? "Query cancelled" : "Query stopped", message: self.status.stringValue, symbol: "exclamationmark.circle"); self.capturePreview(); return }
-                guard response["ok"] as? Bool == true else { self.status.stringValue = response["error"] as? String ?? "Query failed."; self.setChartVisible(false); self.showState(self.cancelled ? "Query cancelled" : "Query stopped", message: self.status.stringValue, symbol: "exclamationmark.circle"); self.capturePreview(); return }
+                guard response["ok"] as? Bool == true else { self.selectErrorLocation(response); self.status.stringValue = response["error"] as? String ?? "Query failed."; self.setChartVisible(false); self.showState(self.cancelled ? "Query cancelled" : "Query stopped", message: self.status.stringValue, symbol: "exclamationmark.circle"); self.capturePreview(); return }
                 if response["action"] as? String == "profile", let sql = response["sql"] as? String { self.editor.string = sql }
-                self.lastResponse = response; self.exportButton.isEnabled = true; self.resultFilter.isEnabled = true
+                self.lastResponse = response; self.lastResponseData = data; self.exportButton.isEnabled = true; self.resultFilter.isEnabled = true
                 self.rows = response["rows"] as? [[Any]] ?? []; self.columns = response["columns"] as? [[String: Any]] ?? []
                 for col in self.table.tableColumns { self.table.removeTableColumn(col) }
                 for (index, column) in self.columns.enumerated() { let col = NSTableColumn(identifier: NSUserInterfaceItemIdentifier(String(index))); col.title = column["name"] as? String ?? "Column"; col.width = 160; col.sortDescriptorPrototype = NSSortDescriptor(key: String(index), ascending: true); self.table.addTableColumn(col) }
                 self.allRows = self.rows; self.table.sortDescriptors = []
                 self.stateSpinner.stopAnimation(nil); self.statePanel.isHidden = true; self.resultScroll.isHidden = false
                 self.table.reloadData()
-                self.schema.string = self.schemaText(response)
-                if response["profile"] == nil { self.showSchema(response["schema"] as? [[String: String]] ?? []) }
                 let fields = response["schema"] as? [[String: Any]] ?? []
+                if let profile = response["profile"] as? [[String: Any]], !profile.isEmpty {
+                    self.sidebar.applyProfile(profile)
+                } else {
+                    self.sidebar.applySchema(fields)
+                }
                 self.editor.schemaColumns = fields.compactMap { $0["name"] as? String }; self.editor.highlight()
                 let datasetCount = (response["dataset_rows"] as? NSNumber)?.intValue ?? 0
-                self.detail.stringValue = "\(datasetCount.formatted()) rows · \(fields.count) columns · source unchanged"
+                self.sidebar.setDataset(url: self.selectedURL, rows: datasetCount, columns: fields.count)
+                self.window.title = self.selectedURL?.lastPathComponent ?? "Quelyt"
                 self.updateChart(response)
                 self.resultSummary.stringValue = self.rows.count == 1 ? "1 row" : "\(self.rows.count.formatted()) rows"
                 if self.rows.isEmpty { self.showState("No rows returned", message: "The query ran successfully. Try changing your filters or selecting a wider range.", symbol: "line.3.horizontal.decrease.circle") }
@@ -537,24 +630,6 @@ final class QuelytApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, N
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { self.finishCompare() }
         }
     }
-    func schemaText(_ response: [String: Any]) -> String {
-        if let profile = response["profile"] as? [[String: Any]], !profile.isEmpty {
-            return "dataset\n\n" + profile.map { column in
-                let name = column["name"] as? String ?? ""
-                let type = column["type"] as? String ?? ""
-                let nullPct = column["null_pct"] as? NSNumber ?? 0
-                let distinct = column["distinct_count"] as? NSNumber ?? 0
-                var lines = ["\(name)", "\(type)", "null \(nullPct)% · distinct \(distinct)"]
-                var range: [String] = []
-                if let min = column["min"], !(min is NSNull) { range.append("min \(min)") }
-                if let max = column["max"], !(max is NSNull) { range.append("max \(max)") }
-                if !range.isEmpty { lines.append(range.joined(separator: " · ")) }
-                return lines.joined(separator: "\n")
-            }.joined(separator: "\n\n")
-        }
-        let fields = response["schema"] as? [[String: Any]] ?? []
-        return "dataset\n\n" + fields.map { "\($0["name"] as? String ?? "")\n\($0["type"] as? String ?? "")\n" }.joined(separator: "\n")
-    }
     func updateChart(_ response: [String: Any]) {
         let kind = (response["chart"] as? [String: Any])?["kind"] as? String ?? "none"
         let values = response["values"] as? [[Any]] ?? []
@@ -583,19 +658,8 @@ final class QuelytApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, N
         window?.contentView?.layoutSubtreeIfNeeded()
         chartView.needsDisplay = true
     }
-    func numberOfRows(in tableView: NSTableView) -> Int { tableView === historyTable ? traces.count : rows.count }
+    func numberOfRows(in tableView: NSTableView) -> Int { rows.count }
     func tableView(_ tableView: NSTableView, viewFor column: NSTableColumn?, row: Int) -> NSView? {
-        if tableView === historyTable {
-            guard row < traces.count else { return nil }
-            let trace = traces[row]
-            let sql = (trace["sql"] as? String ?? "").split(whereSeparator: \.isNewline).first.map(String.init) ?? ""
-            let mark = (trace["ok"] as? Bool) == true ? "" : "Error · "
-            let field = NSTextField(labelWithString: mark + sql)
-            field.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
-            field.lineBreakMode = .byTruncatingTail
-            field.toolTip = trace["sql"] as? String
-            return field
-        }
         guard let column = column, let index = Int(column.identifier.rawValue), row < rows.count, index < rows[row].count else { return nil }
         let reuse = NSUserInterfaceItemIdentifier("cell")
         let field = tableView.makeView(withIdentifier: reuse, owner: self) as? NSTextField ?? NSTextField(labelWithString: "")
@@ -604,14 +668,7 @@ final class QuelytApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, N
         return field
     }
     func tableViewSelectionDidChange(_ notification: Notification) {
-        copyButton.isEnabled = process == nil && !table.selectedRowIndexes.isEmpty
-        guard notification.object as? NSTableView === historyTable, !reloadingHistory, process == nil else { return }
-        let row = historyTable.selectedRow
-        guard row >= 0, row < traces.count, let sql = traces[row]["sql"] as? String else { return }
-        editor.string = sql
-        if let path = traces[row]["path"] as? String, selectedURL?.path != path, ["csv", "parquet"].contains(URL(fileURLWithPath: path).pathExtension.lowercased()) {
-            status.stringValue = "History SQL loaded. Open that dataset to run it."
-        }
+        copyItem?.isEnabled = process == nil && !table.selectedRowIndexes.isEmpty
     }
     func historyJSON(_ arguments: [String], input: Data? = nil) -> [String: Any]? {
         let p = Process(); p.executableURL = URL(fileURLWithPath: workspace + "/.venv/bin/python")
@@ -627,14 +684,12 @@ final class QuelytApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, N
         return (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
     }
     func reloadHistory() {
-        reloadingHistory = true
         let listed = historyJSON(["list"])
-        traces = listed?["traces"] as? [[String: Any]] ?? []
-        historyTable.reloadData(); historyTable.deselectAll(nil)
-        reloadingHistory = false
+        sidebar.setTraces(listed?["traces"] as? [[String: Any]] ?? [])
         rebuildRecentMenu(listed?["sources"] as? [[String: Any]] ?? [])
     }
     func rebuildRecentMenu(_ sources: [[String: Any]]) {
+        sidebar.setRecents(sources)
         recentMenu.removeAllItems()
         if sources.isEmpty {
             let empty = recentMenu.addItem(withTitle: "No recent datasets", action: nil, keyEquivalent: "")
@@ -649,7 +704,7 @@ final class QuelytApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, N
     }
     func lastReadableSource() -> URL? {
         let listed = historyJSON(["list"])
-        traces = listed?["traces"] as? [[String: Any]] ?? []
+        sidebar.setTraces(listed?["traces"] as? [[String: Any]] ?? [])
         rebuildRecentMenu(listed?["sources"] as? [[String: Any]] ?? [])
         guard let path = (listed?["sources"] as? [[String: Any]])?.first?["path"] as? String else { return nil }
         return FileManager.default.isReadableFile(atPath: path) ? URL(fileURLWithPath: path) : nil
@@ -681,19 +736,18 @@ final class QuelytApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, N
         guard process == nil, let path = sender.representedObject as? String else { return }
         openDataset(URL(fileURLWithPath: path))
     }
-    @objc func rerunHistory() {
-        let row = historyTable.clickedRow >= 0 ? historyTable.clickedRow : historyTable.selectedRow
-        guard process == nil, row >= 0, row < traces.count, let sql = traces[row]["sql"] as? String else { return }
+    @objc func rerunHistory() { sidebar.rerunSelectedTrace() }
+    func runHistory(_ trace: [String: Any]) {
+        guard process == nil, let sql = trace["sql"] as? String else { return }
         editor.string = sql
-        guard let path = traces[row]["path"] as? String, FileManager.default.isReadableFile(atPath: path) else {
+        guard let path = trace["path"] as? String, FileManager.default.isReadableFile(atPath: path) else {
             status.stringValue = "This query’s dataset is unavailable. Open the source file before rerunning."; return
         }
         if selectedURL?.path != path { openDataset(URL(fileURLWithPath: path), sql: sql); return }
         runQuery()
     }
     @objc func deleteSelectedTrace() {
-        let row = historyTable.selectedRow
-        guard !skipHistory(), row >= 0, row < traces.count, let id = traces[row]["id"] else { return }
+        guard !skipHistory(), let id = sidebar.selectedTrace()?["id"] else { return }
         DispatchQueue.global(qos: .utility).async {
             _ = self.historyJSON(["delete", String(describing: id)])
             DispatchQueue.main.async { self.reloadHistory() }
@@ -710,14 +764,65 @@ final class QuelytApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, N
             DispatchQueue.main.async { self.reloadHistory() }
         }
     }
+    func selectErrorLocation(_ response: [String: Any]) {
+        guard let location = response["location"] as? [String: Int], let line = location["line"], let column = location["column"], line > 0, column > 0 else { return }
+        let lines = editor.string.components(separatedBy: "\n")
+        guard line <= lines.count else { return }
+        let preceding = lines.prefix(line - 1).joined(separator: "\n")
+        let prefix = String(lines[line - 1].unicodeScalars.prefix(column - 1))
+        let offset = (preceding as NSString).length + (line > 1 ? 1 : 0) + (prefix as NSString).length
+        let range = NSRange(location: min(offset, (editor.string as NSString).length), length: 0)
+        window.makeFirstResponder(editor); editor.setSelectedRange(range); editor.scrollRangeToVisible(range)
+    }
+    func runUIChecks(output: String) {
+        var checks: [[String: Any]] = []
+        func check(_ name: String, _ passed: Bool) { checks.append(["case": name, "passed": passed]) }
+        editor.string = "SELECT 'FROM' -- WHERE\nFROM dataset"; editor.setSelectedRange(NSRange(location: 4, length: 0)); editor.highlight()
+        check("highlight_preserves_SQL_and_selection", editor.string == "SELECT 'FROM' -- WHERE\nFROM dataset" && editor.selectedRange().location == 4)
+        editor.schemaColumns = ["revenue", "region name", "odd\"name"]
+        editor.string = "reg"; var selected = 0
+        let completions = editor.completions(forPartialWordRange: NSRange(location: 0, length: 3), indexOfSelectedItem: &selected) ?? []
+        check("schema_completion_quotes_names", completions.contains("\"region name\""))
+        allRows = [["East", "10"], ["West", "2"], ["East", "-1"]]; rows = allRows
+        resultFilter.stringValue = "east"; filterResults(); check("filter_case_insensitive", rows.count == 2)
+        resultFilter.stringValue = ""; filterResults(); table.sortDescriptors = [NSSortDescriptor(key: "1", ascending: true)]
+        tableView(table, sortDescriptorsDidChange: []); check("numeric_sort", rows.map { $0[1] as! String } == ["-1", "2", "10"])
+        editor.string = "SELECT *\nFROM dataset"; selectErrorLocation(["location": ["line": 2, "column": 3]])
+        check("error_location", editor.selectedRange().location == 11)
+        updateChart(["chart": ["kind": "bar"], "values": [["East", -10], ["West", 20]]])
+        check("chart_accessible_values", chartView.accessibilityValue() as? String == "East: -10.0; West: 20.0")
+        chartToggle.state = .off; toggleChart(); check("chart_toggle", chartView.isHidden)
+        editor.string = "SELECT "; editor.setSelectedRange(NSRange(location: 7, length: 0))
+        sidebar.applySchema([["name": "region name", "type": "VARCHAR"], ["name": "amount", "type": "DOUBLE"], ["name": "sale_date", "type": "DATE"]])
+        sidebar.insertColumn(at: 0)
+        check("column_insert_quotes_names", editor.string == "SELECT \"region name\"")
+        sidebar.applyProfile([["name": "amount", "type": "DOUBLE", "null_pct": 0, "distinct_count": 3, "min": 1, "max": 9]])
+        sidebar.applySchema([["name": "amount", "type": "DOUBLE"], ["name": "region", "type": "VARCHAR"]])
+        let amountMeta = sidebar.visibleColumnRows().first { $0.name == "amount" }?.meta ?? ""
+        check("profile_survives_later_query", amountMeta.contains("distinct 3") && amountMeta.contains("null 0"))
+        sidebar.applySchema([["name": "revenue", "type": "DOUBLE"], ["name": "region", "type": "VARCHAR"]])
+        sidebar.columnFilterString = "rev"
+        check("column_filter", sidebar.visibleColumnRows().map(\.name) == ["revenue"])
+        sidebar.columnFilterString = ""
+        let extras = (1...8).map { ["name": "file\($0).csv", "path": "/tmp/file\($0).csv"] }
+        sidebar.setRecents(extras)
+        check("recents_capped", sidebar.recentNames() == ["file1.csv", "file2.csv", "file3.csv", "file4.csv", "file5.csv", "file6.csv", "file7.csv"])
+        let item = split.splitViewItems[0]
+        let restored = item.isCollapsed
+        item.isCollapsed = true
+        let collapsed = item.isCollapsed
+        item.isCollapsed = restored
+        check("sidebar_collapse_restores", collapsed && item.isCollapsed == restored)
+        if let data = try? JSONSerialization.data(withJSONObject: checks, options: [.prettyPrinted, .sortedKeys]) { try? data.write(to: URL(fileURLWithPath: output)) }
+        NSApp.terminate(nil)
+    }
     @objc func exportResults() {
-        guard process == nil, let response = lastResponse else { return }
+        guard process == nil, let data = lastResponseData else { return }
         let panel = NSSavePanel(); panel.allowedContentTypes = [.json]; panel.nameFieldStringValue = "quelyt-results.json"
         panel.message = "Export the returned rows with types, SQL and truncation flags. Display limits apply."
         panel.beginSheetModal(for: window) { result in
             guard result == .OK, let url = panel.url else { return }
             do {
-                let data = try JSONSerialization.data(withJSONObject: response, options: [.prettyPrinted, .sortedKeys])
                 try data.write(to: url, options: .atomic)
                 self.status.stringValue = "Exported returned results to \(url.lastPathComponent)."
             } catch { self.status.stringValue = "Export failed: \(error.localizedDescription)" }
@@ -747,13 +852,14 @@ final class QuelytApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, N
     }
     @objc func focusEditor() { window.makeFirstResponder(editor) }
     @objc func focusResults() { window.makeFirstResponder(table) }
-    @objc func focusHistory() { window.makeFirstResponder(historyTable) }
+    @objc func focusHistory() { window.makeFirstResponder(sidebar.historyTable) }
+    @objc func toggleSidebar(_ sender: Any?) { split.toggleSidebar(sender) }
     @objc func completeSQL() { window.makeFirstResponder(editor); editor.complete(nil) }
     @objc func toggleChart() { setChartVisible(chartToggle.state == .on && chartView.kind != "none") }
     @objc func filterResults() {
         let needle = resultFilter.stringValue
         rows = needle.isEmpty ? allRows : allRows.filter { row in row.contains { String(describing: $0).localizedCaseInsensitiveContains(needle) } }
-        table.reloadData(); table.deselectAll(nil); copyButton.isEnabled = false
+        table.reloadData(); table.deselectAll(nil); copyItem?.isEnabled = false
         resultSummary.stringValue = "\(rows.count) of \(allRows.count) returned rows"
     }
     func tableView(_ tableView: NSTableView, sortDescriptorsDidChange oldDescriptors: [NSSortDescriptor]) {

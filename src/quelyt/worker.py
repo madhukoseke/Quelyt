@@ -102,7 +102,7 @@ def json_value(value):
     if value is None:
         return None
     if isinstance(value, bool):
-        return str(value)
+        return value
     if isinstance(value, int):
         return value
     if isinstance(value, float):
@@ -110,8 +110,8 @@ def json_value(value):
     if isinstance(value, Decimal):
         if not value.is_finite():
             return None
-        as_int = value.to_integral_value()
-        return int(as_int) if value == as_int else float(value)
+        # Preserve decimal precision in JSON; column type retains the numeric semantics.
+        return str(value)
     if isinstance(value, (dt.date, dt.time, dt.datetime, dt.timedelta)):
         return str(value)
     text = str(value)
@@ -359,6 +359,9 @@ def main() -> int:
         result = query(request)
     except Exception as exc:
         result = {'ok': False, 'error': str(exc)[:2000], 'kind': type(exc).__name__}
+        if isinstance(exc, sqlglot.errors.ParseError) and exc.errors:
+            issue = exc.errors[0]
+            result['location'] = {'line': issue.get('line', 1), 'column': issue.get('col', 1)}
     print(json.dumps(result, ensure_ascii=True))
     return 0 if result['ok'] else 1
 

@@ -1,0 +1,50 @@
+[
+  {
+    "case" : "highlight_preserves_SQL_and_selection",
+    "passed" : true
+  },
+  {
+    "case" : "schema_completion_quotes_names",
+    "passed" : true
+  },
+  {
+    "case" : "filter_case_insensitive",
+    "passed" : true
+  },
+  {
+    "case" : "numeric_sort",
+    "passed" : true
+  },
+  {
+    "case" : "error_location",
+    "passed" : true
+  },
+  {
+    "case" : "chart_accessible_values",
+    "passed" : true
+  },
+  {
+    "case" : "chart_toggle",
+    "passed" : true
+  },
+  {
+    "case" : "column_insert_quotes_names",
+    "passed" : true
+  },
+  {
+    "case" : "profile_survives_later_query",
+    "passed" : true
+  },
+  {
+    "case" : "column_filter",
+    "passed" : true
+  },
+  {
+    "case" : "recents_capped",
+    "passed" : true
+  },
+  {
+    "case" : "sidebar_collapse_restores",
+    "passed" : true
+  }
+]

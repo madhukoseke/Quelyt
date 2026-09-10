@@ -17,7 +17,7 @@ apps/macos/build.sh
 open .build/Quelyt.app
 ```
 
-Open or drop one CSV/Parquet file. Run queries against `dataset` using **⌘ Return**. **Profile dataset** computes row counts, null rates, distinct counts and min/max per column, and puts the generated SQL in the editor. Two-column results with a numeric Y axis (2–24 rows) draw a bar or line chart bound to that SQL. **Cancel** stops the disposable worker. The original file is never changed. Schema, query results and a local SQL history appear on this Mac. File > Open Recent reopens a previous dataset; clicking a history row loads its SQL, double-click reruns it. Select result rows and use **⌘C** to copy TSV with headers.
+Open or drop one CSV/Parquet file. Run queries against `dataset` using **⌘ Return**. The left sidebar is the control plane: current file, recents, columns and SQL history. Click a column to insert its quoted name at the caret. **Profile** keeps those column stats on the same rows and puts the generated SQL in the editor. Hide the sidebar with **⌃B**. Two-column results with a numeric Y axis (2–24 rows) draw a bar or line chart bound to that SQL. **Cancel** stops the disposable worker. The original file is never changed. File > Open Recent reopens a previous dataset; clicking a history row loads its SQL, double-click reruns it. Select result rows and use **⌘C** to copy TSV with headers.
 
 Example:
 
@@ -49,7 +49,15 @@ The Ollama and PostgreSQL experiments have additional installed-tool prerequisit
 - Comparable Tauri/Swift/Electron editor+grid workload recorded; release framework still provisional pending packaging and editor completeness.
 - Better local model; the held-out 50-case suite failed product gates (7/30 supported, 6/20 clarify/refuse). Talk to Data stays out of the app.
 - OS filesystem/network confinement. SQL policy and DuckDB settings are defense in depth, not a complete sandbox.
-- Broader native accessibility and drag/drop testing. Native file picker, query shortcut, cancellation, row copying, scrolling, dataset profile, two-column bar/line charts and local SQL history have been exercised.
+- Broader native accessibility and drag/drop testing. Native file picker, query shortcut, cancellation, row copying, scrolling, dataset profile, two-column bar/line charts, local SQL history and the full-height sidebar have been exercised in the developer shell.
 - Bundled runtime, license notices, Developer ID signing/notarization and clean-machine offline installation.
 
 See [Milestone 1 verification](docs/research/milestone-1.md) for actual checks and remaining gaps. No open-source license or business model has been selected.
+
+## Editor and result controls
+
+SQL highlighting and schema completion are available in the native editor (**Escape**, or Workspace > Complete SQL). **⌘1 / ⌘2 / ⌘3** focus SQL, results, and history. File > Save Query (**⌘S**) and Open Query use local `.sql` files. The titlebar holds Open, Run, Cancel, Profile and Copy.
+
+Filter the returned rows with the Results search field; click a column header to sort. Chart toggles visibility for eligible results. **Export…** saves the original returned result as JSON with SQL, column types, typed values and truncation flags. Export and chart follow the executed query, not display filtering/sorting. Decimals export as exact strings; integers retain their original JSON representation. The current row/cell limits apply. See [UI/UX progress](docs/research/ui-ux-progress.md) for checks and remaining acceptance work.
+
+Run `apps/macos/release-preflight.sh` to inspect distribution prerequisites. The developer bundle is expected to fail until its runtime, identity, notarization and offline release gates are resolved.

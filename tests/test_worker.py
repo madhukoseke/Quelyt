@@ -24,6 +24,20 @@ class WorkerTests(unittest.TestCase):
     def tearDown(self):
         self.tmp.cleanup()
 
+    def test_export_types_preserve_decimal_boolean_and_large_integer(self):
+        response = query({'path': str(self.csv), 'sql': "SELECT CAST('123456789012345678.123456789' AS DECIMAL(30,9)) AS precise, TRUE AS flag, CAST('170141183460469231731687303715884105727' AS HUGEINT) AS huge FROM dataset LIMIT 1"})
+        self.assertEqual(response['values'][0], ['123456789012345678.123456789', True, 170141183460469231731687303715884105727])
+        self.assertEqual(json.loads(json.dumps(response))['values'], response['values'])
+
+    def test_process_parse_error_location(self):
+        result = subprocess.run([sys.executable, str(ROOT / 'src/quelyt/worker.py')],
+            input=json.dumps({'path': str(self.csv), 'sql': 'SELECT *\nFROM dataset WHERE ('}), text=True, capture_output=True)
+        response = json.loads(result.stdout)
+        self.assertFalse(response['ok'])
+        self.assertEqual(response['kind'], 'ParseError')
+        self.assertEqual(response['location']['line'], 2)
+        self.assertGreater(response['location']['column'], 0)
+
     def test_csv_aggregate_and_source_unchanged(self):
         before = self.csv.read_bytes()
         r = query({'path': str(self.csv), 'sql': 'SELECT region, sum(amount) revenue FROM dataset GROUP BY region ORDER BY region'})

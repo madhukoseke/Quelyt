@@ -3,12 +3,23 @@ import AppKit
 final class SQLEditor: NSTextView {
     var schemaColumns: [String] = []
     private let keywords = "SELECT FROM WHERE GROUP BY ORDER ASC DESC LIMIT OFFSET AS AND OR NOT NULL IS IN LIKE BETWEEN DISTINCT HAVING JOIN LEFT RIGHT INNER OUTER ON CASE WHEN THEN ELSE END TRUE FALSE SUM COUNT AVG MIN MAX COALESCE CAST".components(separatedBy: " ")
+    static func quotedIdentifier(_ name: String) -> String {
+        "\"" + name.replacingOccurrences(of: "\"", with: "\"\"") + "\""
+    }
     override var string: String {
         didSet { highlight() }
     }
     override func didChangeText() {
         super.didChangeText()
         highlight()
+    }
+    func insertIdentifier(_ name: String) {
+        let quoted = Self.quotedIdentifier(name)
+        let range = selectedRange()
+        if shouldChangeText(in: range, replacementString: quoted) {
+            replaceCharacters(in: range, with: quoted)
+            didChangeText()
+        }
     }
     func highlight() {
         guard let storage = textStorage else { return }
@@ -33,7 +44,7 @@ final class SQLEditor: NSTextView {
     }
     override func completions(forPartialWordRange charRange: NSRange, indexOfSelectedItem index: UnsafeMutablePointer<Int>) -> [String]? {
         let prefix = (string as NSString).substring(with: charRange)
-        let columns = schemaColumns.map { "\"" + $0.replacingOccurrences(of: "\"", with: "\"\"") + "\"" }
+        let columns = schemaColumns.map { Self.quotedIdentifier($0) }
         let candidates = Array(Set(keywords + ["dataset"] + columns)).sorted()
         index.pointee = 0
         return candidates.filter { $0.trimmingCharacters(in: CharacterSet(charactersIn: "\"")).localizedLowercase.hasPrefix(prefix.localizedLowercase) }
