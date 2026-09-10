@@ -11,7 +11,7 @@ from sqlglot.errors import ParseError
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'src'))
-from quelyt.worker import query, validate_sql, PolicyError
+from quelyt.worker import query, validate_sql, PolicyError, suggest_chart
 
 
 class WorkerTests(unittest.TestCase):
@@ -28,6 +28,9 @@ class WorkerTests(unittest.TestCase):
         before = self.csv.read_bytes()
         r = query({'path': str(self.csv), 'sql': 'SELECT region, sum(amount) revenue FROM dataset GROUP BY region ORDER BY region'})
         self.assertEqual(r['rows'], [['East', '20'], ['West', '15']])
+        self.assertEqual(r['values'], [['East', 20], ['West', 15]])
+        self.assertEqual(r['column_kinds'], ['text', 'number'])
+        self.assertEqual(r['chart']['kind'], 'bar')
         self.assertEqual(r['dataset_rows'], 3)
         self.assertEqual(self.csv.read_bytes(), before)
 
@@ -48,6 +51,8 @@ class WorkerTests(unittest.TestCase):
         self.csv.write_text('odd column,amount\nhello,\nworld,2\n')
         r = query({'path': str(self.csv), 'sql': 'SELECT "odd column", amount FROM dataset ORDER BY "odd column"'})
         self.assertEqual(r['rows'][0], ['hello', None])
+        self.assertEqual(r['values'][0], ['hello', None])
+        self.assertEqual(r['column_kinds'], ['text', 'number'])
 
     def test_result_limit(self):
         self.csv.write_text('id\n' + '\n'.join(str(i) for i in range(3000)))
@@ -107,6 +112,51 @@ class WorkerTests(unittest.TestCase):
             result=json.loads(p.stdout)
             self.assertEqual(result['ok'],expected)
             self.assertEqual(p.returncode,0 if expected else 1)
+
+    def test_profile_stats_and_source_unchanged(self):
+        self.csv.write_text('region,amount\nWest,10\nEast,\nWest,5\n')
+        before = self.csv.read_bytes()
+        r = query({'path': str(self.csv), 'action': 'profile'})
+        self.assertEqual(self.csv.read_bytes(), before)
+        self.assertEqual(r['action'], 'profile')
+        self.assertEqual(r['dataset_rows'], 3)
+        self.assertIn('FROM dataset', r['sql'])
+        by_name = {column['name']: column for column in r['profile']}
+        self.assertEqual(by_name['amount']['null_count'], 1)
+        self.assertEqual(by_name['amount']['null_pct'], 33.33)
+        self.assertEqual(by_name['amount']['distinct_count'], 2)
+        self.assertEqual(by_name['amount']['min'], 5)
+        self.assertEqual(by_name['amount']['max'], 10)
+        self.assertEqual(by_name['region']['null_count'], 0)
+        self.assertEqual(by_name['region']['distinct_count'], 2)
+        self.assertEqual(by_name['region']['min'], 'East')
+        self.assertEqual(by_name['region']['max'], 'West')
+        self.assertEqual(r['chart']['kind'], 'none')
+        self.assertEqual(len(r['rows']), 2)
+
+    def test_profile_unknown_action_and_deadline(self):
+        with self.assertRaises(PolicyError):
+            query({'path': str(self.csv), 'action': 'write'})
+        with self.assertRaises(PolicyError):
+            query({'path': str(self.csv), 'action': 'profile', 'timeout_seconds': 0})
+
+    def test_chart_heuristic_bar_line_none(self):
+        bar = suggest_chart('SELECT region, revenue FROM dataset', [{'name': 'region', 'type': 'VARCHAR'}, {'name': 'revenue', 'type': 'BIGINT'}],
+                            [['East', 20], ['West', 15]], ['text', 'number'], False)
+        self.assertEqual(bar['kind'], 'bar')
+        line = suggest_chart('SELECT day, revenue FROM dataset', [{'name': 'day', 'type': 'DATE'}, {'name': 'revenue', 'type': 'DOUBLE'}],
+                             [['2024-01-01', 10], ['2024-01-02', 20]], ['text', 'number'], False)
+        self.assertEqual(line['kind'], 'line')
+        numeric = suggest_chart('SELECT id, amount FROM dataset', [{'name': 'id', 'type': 'INTEGER'}, {'name': 'amount', 'type': 'INTEGER'}],
+                                [[1, 10], [2, 20]], ['number', 'number'], False)
+        self.assertEqual(numeric['kind'], 'line')
+        none = suggest_chart('SELECT * FROM dataset', [{'name': 'region', 'type': 'VARCHAR'}, {'name': 'amount', 'type': 'INTEGER'}],
+                             [['West', 10]], ['text', 'number'], False)
+        self.assertEqual(none['kind'], 'none')
+        self.csv.write_text('day,amount\n2024-01-01,10\n2024-01-02,20\n')
+        r = query({'path': str(self.csv), 'sql': 'SELECT day, SUM(amount) AS revenue FROM dataset GROUP BY day ORDER BY day'})
+        self.assertEqual(r['chart']['kind'], 'line')
+        self.assertEqual(r['chart']['sql'], 'SELECT day, SUM(amount) AS revenue FROM dataset GROUP BY day ORDER BY day')
 
 
 if __name__ == '__main__': unittest.main()

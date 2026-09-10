@@ -1,0 +1,254 @@
+[
+  {
+    "framework": "native",
+    "run": 1,
+    "ready": true,
+    "fresh_process_to_dataset_ready_ms": 471.54,
+    "rss_kib_sum": 84144,
+    "processes": [
+      {
+        "pid": 168,
+        "ppid": 166,
+        "rss_kib": 84144,
+        "executable": "/Users/madhukoseke/Documents/Projects/Quelyt/.build/Quelyt.app/Contents/MacOS/Quelyt"
+      }
+    ],
+    "attribution": "descendants plus newly created WebKit XPC helpers; RSS sum may double-count shared pages"
+  },
+  {
+    "framework": "tauri",
+    "run": 1,
+    "ready": true,
+    "fresh_process_to_dataset_ready_ms": 518.92,
+    "rss_kib_sum": 193696,
+    "processes": [
+      {
+        "pid": 204,
+        "ppid": 166,
+        "rss_kib": 82576,
+        "executable": "/Users/madhukoseke/Documents/Projects/Quelyt/experiments/frameworks/src-tauri/target/release/quelyt-tauri-probe"
+      },
+      {
+        "pid": 206,
+        "ppid": 1,
+        "rss_kib": 34912,
+        "executable": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU"
+      },
+      {
+        "pid": 207,
+        "ppid": 1,
+        "rss_kib": 60608,
+        "executable": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent"
+      },
+      {
+        "pid": 208,
+        "ppid": 1,
+        "rss_kib": 15600,
+        "executable": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking"
+      }
+    ],
+    "attribution": "descendants plus newly created WebKit XPC helpers; RSS sum may double-count shared pages"
+  },
+  {
+    "framework": "electron",
+    "run": 1,
+    "ready": true,
+    "fresh_process_to_dataset_ready_ms": 798.51,
+    "rss_kib_sum": 376832,
+    "processes": [
+      {
+        "pid": 236,
+        "ppid": 166,
+        "rss_kib": 136272,
+        "executable": "/Users/madhukoseke/Documents/Projects/Quelyt/experiments/frameworks/node_modules/electron/dist/Electron.app/Contents/MacOS/Electron"
+      },
+      {
+        "pid": 239,
+        "ppid": 236,
+        "rss_kib": 87072,
+        "executable": "/Users/madhukoseke/Documents/Projects/Quelyt/experiments/frameworks/node_modules/electron/dist/Electron.app/Contents/Frameworks/Electron Helper.app/Contents/MacOS/Electron Helper"
+      },
+      {
+        "pid": 240,
+        "ppid": 236,
+        "rss_kib": 37088,
+        "executable": "/Users/madhukoseke/Documents/Projects/Quelyt/experiments/frameworks/node_modules/electron/dist/Electron.app/Contents/Frameworks/Electron Helper.app/Contents/MacOS/Electron Helper"
+      },
+      {
+        "pid": 241,
+        "ppid": 236,
+        "rss_kib": 116400,
+        "executable": "/Users/madhukoseke/Documents/Projects/Quelyt/experiments/frameworks/node_modules/electron/dist/Electron.app/Contents/Frameworks/Electron Helper (Renderer).app/Contents/MacOS/Electron Helper (Renderer)"
+      }
+    ],
+    "attribution": "descendants plus newly created WebKit XPC helpers; RSS sum may double-count shared pages"
+  },
+  {
+    "framework": "electron",
+    "run": 2,
+    "ready": true,
+    "fresh_process_to_dataset_ready_ms": 486.7,
+    "rss_kib_sum": 375648,
+    "processes": [
+      {
+        "pid": 283,
+        "ppid": 166,
+        "rss_kib": 136320,
+        "executable": "/Users/madhukoseke/Documents/Projects/Quelyt/experiments/frameworks/node_modules/electron/dist/Electron.app/Contents/MacOS/Electron"
+      },
+      {
+        "pid": 284,
+        "ppid": 283,
+        "rss_kib": 85632,
+        "executable": "/Users/madhukoseke/Documents/Projects/Quelyt/experiments/frameworks/node_modules/electron/dist/Electron.app/Contents/Frameworks/Electron Helper.app/Contents/MacOS/Electron Helper"
+      },
+      {
+        "pid": 285,
+        "ppid": 283,
+        "rss_kib": 37008,
+        "executable": "/Users/madhukoseke/Documents/Projects/Quelyt/experiments/frameworks/node_modules/electron/dist/Electron.app/Contents/Frameworks/Electron Helper.app/Contents/MacOS/Electron Helper"
+      },
+      {
+        "pid": 286,
+        "ppid": 283,
+        "rss_kib": 116688,
+        "executable": "/Users/madhukoseke/Documents/Projects/Quelyt/experiments/frameworks/node_modules/electron/dist/Electron.app/Contents/Frameworks/Electron Helper (Renderer).app/Contents/MacOS/Electron Helper (Renderer)"
+      }
+    ],
+    "attribution": "descendants plus newly created WebKit XPC helpers; RSS sum may double-count shared pages"
+  },
+  {
+    "framework": "native",
+    "run": 2,
+    "ready": true,
+    "fresh_process_to_dataset_ready_ms": 368.51,
+    "rss_kib_sum": 83968,
+    "processes": [
+      {
+        "pid": 353,
+        "ppid": 166,
+        "rss_kib": 83968,
+        "executable": "/Users/madhukoseke/Documents/Projects/Quelyt/.build/Quelyt.app/Contents/MacOS/Quelyt"
+      }
+    ],
+    "attribution": "descendants plus newly created WebKit XPC helpers; RSS sum may double-count shared pages"
+  },
+  {
+    "framework": "tauri",
+    "run": 2,
+    "ready": true,
+    "fresh_process_to_dataset_ready_ms": 466.64,
+    "rss_kib_sum": 195216,
+    "processes": [
+      {
+        "pid": 404,
+        "ppid": 166,
+        "rss_kib": 83216,
+        "executable": "/Users/madhukoseke/Documents/Projects/Quelyt/experiments/frameworks/src-tauri/target/release/quelyt-tauri-probe"
+      },
+      {
+        "pid": 405,
+        "ppid": 1,
+        "rss_kib": 35840,
+        "executable": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU"
+      },
+      {
+        "pid": 406,
+        "ppid": 1,
+        "rss_kib": 60992,
+        "executable": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent"
+      },
+      {
+        "pid": 408,
+        "ppid": 1,
+        "rss_kib": 15168,
+        "executable": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking"
+      }
+    ],
+    "attribution": "descendants plus newly created WebKit XPC helpers; RSS sum may double-count shared pages"
+  },
+  {
+    "framework": "tauri",
+    "run": 3,
+    "ready": true,
+    "fresh_process_to_dataset_ready_ms": 505.82,
+    "rss_kib_sum": 193264,
+    "processes": [
+      {
+        "pid": 438,
+        "ppid": 166,
+        "rss_kib": 82624,
+        "executable": "/Users/madhukoseke/Documents/Projects/Quelyt/experiments/frameworks/src-tauri/target/release/quelyt-tauri-probe"
+      },
+      {
+        "pid": 445,
+        "ppid": 1,
+        "rss_kib": 34656,
+        "executable": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU"
+      },
+      {
+        "pid": 446,
+        "ppid": 1,
+        "rss_kib": 60688,
+        "executable": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent"
+      },
+      {
+        "pid": 447,
+        "ppid": 1,
+        "rss_kib": 15296,
+        "executable": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking"
+      }
+    ],
+    "attribution": "descendants plus newly created WebKit XPC helpers; RSS sum may double-count shared pages"
+  },
+  {
+    "framework": "electron",
+    "run": 3,
+    "ready": true,
+    "fresh_process_to_dataset_ready_ms": 479.63,
+    "rss_kib_sum": 377568,
+    "processes": [
+      {
+        "pid": 478,
+        "ppid": 166,
+        "rss_kib": 136320,
+        "executable": "/Users/madhukoseke/Documents/Projects/Quelyt/experiments/frameworks/node_modules/electron/dist/Electron.app/Contents/MacOS/Electron"
+      },
+      {
+        "pid": 480,
+        "ppid": 478,
+        "rss_kib": 88016,
+        "executable": "/Users/madhukoseke/Documents/Projects/Quelyt/experiments/frameworks/node_modules/electron/dist/Electron.app/Contents/Frameworks/Electron Helper.app/Contents/MacOS/Electron Helper"
+      },
+      {
+        "pid": 481,
+        "ppid": 478,
+        "rss_kib": 36832,
+        "executable": "/Users/madhukoseke/Documents/Projects/Quelyt/experiments/frameworks/node_modules/electron/dist/Electron.app/Contents/Frameworks/Electron Helper.app/Contents/MacOS/Electron Helper"
+      },
+      {
+        "pid": 482,
+        "ppid": 478,
+        "rss_kib": 116400,
+        "executable": "/Users/madhukoseke/Documents/Projects/Quelyt/experiments/frameworks/node_modules/electron/dist/Electron.app/Contents/Frameworks/Electron Helper (Renderer).app/Contents/MacOS/Electron Helper (Renderer)"
+      }
+    ],
+    "attribution": "descendants plus newly created WebKit XPC helpers; RSS sum may double-count shared pages"
+  },
+  {
+    "framework": "native",
+    "run": 3,
+    "ready": true,
+    "fresh_process_to_dataset_ready_ms": 316.73,
+    "rss_kib_sum": 83968,
+    "processes": [
+      {
+        "pid": 529,
+        "ppid": 166,
+        "rss_kib": 83968,
+        "executable": "/Users/madhukoseke/Documents/Projects/Quelyt/.build/Quelyt.app/Contents/MacOS/Quelyt"
+      }
+    ],
+    "attribution": "descendants plus newly created WebKit XPC helpers; RSS sum may double-count shared pages"
+  }
+]

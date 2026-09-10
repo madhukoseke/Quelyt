@@ -10,16 +10,16 @@ Native macOS behavior and web-editor maturity pull in different directions.
 Swift/AppKit; Tauri 2/Rust; Electron.
 
 ## Decision
-**DECISION:** Use a Swift/AppKit development shell for M1; defer the release framework until a representative comparative prototype.
+**DECISION:** Keep the Swift/AppKit development shell. Defer a release-framework freeze until packaging and editor-completeness are measured. The query worker remains independent of UI.
 
 ## Evidence
-Native grid compiled/launched on local CLT; official process models in research/technology-sources.md. No comparative performance result. See [experiment report](../research/experiments.md) and [primary sources](../research/technology-sources.md).
+Comparable editor/grid/query/cancel probes on the same DuckDB worker: [framework comparison](../research/framework-comparison.md). Native had the lowest process-tree RSS and fastest median dataset-ready launch on this Mac. Tauri and Electron had slightly faster UI round trips and ship CodeMirror. See also [experiment report](../research/experiments.md) and [primary sources](../research/technology-sources.md).
 
 ## Consequences
-Keep worker protocol independent of UI. A throwaway shell costs less than prematurely freezing framework.
+Continue shipping the AppKit developer app. A throwaway Tauri/Electron probe remains available. Do not quote native executable size as product download size.
 
 ## Risks
-Native editor completion and bundled Python may cost more than Tauri/Rust.
+Native editor completion and bundled Python may still cost more than Tauri/Rust for a polished SQL editor. WebKit/Electron process trees cost more resident memory here.
 
 ## Revisit when
-Before production editor investment or alpha packaging.
+Before production editor investment or alpha packaging, or if CodeMirror-quality editing becomes the blocking P0 gap.

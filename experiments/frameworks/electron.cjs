@@ -22,6 +22,7 @@ ipcMain.handle('query', async (_, {sql, format}) => {
 ipcMain.handle('cancel',()=>worker?.kill('SIGKILL'));
 ipcMain.handle('record',(_,data)=>fs.writeFileSync(path.join(__dirname,'electron-results.json'),JSON.stringify(data,null,2)));
 ipcMain.handle('ready',()=>console.log('QUELYT_READY'));
+ipcMain.handle('quit',()=>app.quit());
 app.whenReady().then(()=>{
   Menu.setApplicationMenu(Menu.buildFromTemplate([{label:'Quelyt',submenu:[{role:'quit'}]},{label:'Edit',submenu:[{role:'undo'},{role:'redo'},{role:'cut'},{role:'copy'},{role:'paste'},{role:'selectAll'}]}]));
   const win=new BrowserWindow({width:1140,height:760,title:'Quelyt · Electron comparison',webPreferences:{preload:path.join(__dirname,'preload.cjs'),contextIsolation:true,nodeIntegration:false,sandbox:true}});

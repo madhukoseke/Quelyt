@@ -22,6 +22,68 @@ final class ResultsTableView: NSTableView {
     }
 }
 
+final class ResultChartView: NSView {
+    var kind = "none"
+    var labels: [String] = []
+    var numbers: [Double] = []
+    override var isFlipped: Bool { true }
+    override func draw(_ dirtyRect: NSRect) {
+        NSColor.white.setFill(); dirtyRect.fill()
+        NSColor.separatorColor.setStroke()
+        let border = NSBezierPath(rect: bounds.insetBy(dx: 0.5, dy: 0.5)); border.lineWidth = 1; border.stroke()
+        guard kind == "bar" || kind == "line", numbers.count >= 2, numbers.count == labels.count else { return }
+        let plot = NSRect(x: 36, y: 28, width: max(bounds.width - 48, 8), height: max(bounds.height - 54, 8))
+        let low = min(0, numbers.min() ?? 0)
+        let high = max(numbers.max() ?? 1, low + 1)
+        let span = high - low
+        let count = CGFloat(numbers.count)
+        NSColor.separatorColor.setStroke()
+        let axes = NSBezierPath(); axes.lineWidth = 1
+        axes.move(to: NSPoint(x: plot.minX, y: plot.maxY)); axes.line(to: NSPoint(x: plot.maxX, y: plot.maxY))
+        axes.move(to: NSPoint(x: plot.minX, y: plot.minY)); axes.line(to: NSPoint(x: plot.minX, y: plot.maxY))
+        axes.stroke()
+        let teal = NSColor.systemTeal
+        if kind == "bar" {
+            let slot = plot.width / count
+            let width = slot * 0.62
+            for (index, value) in numbers.enumerated() {
+                let height = max(CGFloat((value - low) / span) * plot.height, 1)
+                let x = plot.minX + slot * CGFloat(index) + (slot - width) / 2
+                teal.withAlphaComponent(0.88).setFill()
+                NSBezierPath(roundedRect: NSRect(x: x, y: plot.maxY - height, width: width, height: height), xRadius: 2, yRadius: 2).fill()
+            }
+        } else {
+            let line = NSBezierPath(); line.lineWidth = 2; line.lineJoinStyle = .round
+            for (index, value) in numbers.enumerated() {
+                let point = NSPoint(
+                    x: plot.minX + plot.width * CGFloat(index) / max(count - 1, 1),
+                    y: plot.maxY - CGFloat((value - low) / span) * plot.height
+                )
+                if index == 0 { line.move(to: point) } else { line.line(to: point) }
+            }
+            teal.setStroke(); line.stroke(); teal.setFill()
+            for (index, value) in numbers.enumerated() {
+                let x = plot.minX + plot.width * CGFloat(index) / max(count - 1, 1)
+                let y = plot.maxY - CGFloat((value - low) / span) * plot.height
+                NSBezierPath(ovalIn: NSRect(x: x - 3, y: y - 3, width: 6, height: 6)).fill()
+            }
+        }
+        let caption: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 9), .foregroundColor: NSColor.secondaryLabelColor]
+        let slot = plot.width / count
+        for (index, label) in labels.enumerated() {
+            let text = String(label.prefix(12)) as NSString
+            let size = text.size(withAttributes: caption)
+            let x = kind == "line"
+                ? plot.minX + plot.width * CGFloat(index) / max(count - 1, 1) - size.width / 2
+                : plot.minX + slot * CGFloat(index) + (slot - size.width) / 2
+            text.draw(at: NSPoint(x: x, y: bounds.height - 18), withAttributes: caption)
+        }
+        (String(format: "%g", high) as NSString).draw(at: NSPoint(x: 4, y: plot.minY - 2), withAttributes: caption)
+        let title = ((kind == "bar" ? "Bar" : "Line") + " chart · from this query") as NSString
+        title.draw(at: NSPoint(x: plot.minX, y: 6), withAttributes: [.font: NSFont.systemFont(ofSize: 11, weight: .medium), .foregroundColor: NSColor.secondaryLabelColor])
+    }
+}
+
 final class QuelytApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, NSTableViewDelegate {
     var window: NSWindow!
     let editor = NSTextView()
@@ -32,7 +94,9 @@ final class QuelytApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, N
     let schema = NSTextView()
     let runButton = NSButton(title: "Run query", target: nil, action: #selector(runQuery))
     let cancelButton = NSButton(title: "Cancel", target: nil, action: #selector(cancelQuery))
-    let profileButton = NSButton(title: "Count rows", target: nil, action: #selector(profile))
+    let profileButton = NSButton(title: "Profile dataset", target: nil, action: #selector(profile))
+    let chartView = ResultChartView()
+    var chartHeight: NSLayoutConstraint!
     var selectedURL: URL?
     var rows: [[Any]] = []
     var columns: [[String: Any]] = []
@@ -42,6 +106,12 @@ final class QuelytApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, N
     var timedOut = false
     var smokeStage = 0
     var smokeResults: [[String: Any]] = []
+    var workerStarted: TimeInterval = 0
+    var compareStage = 0
+    var previewTimes: [Double] = []
+    var aggregateTimes: [Double] = []
+    var compareWriteRejected = false
+    var compareCancelled = false
     let workspace = Bundle.main.object(forInfoDictionaryKey: "QuelytWorkspace") as? String ?? FileManager.default.currentDirectoryPath
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -93,9 +163,17 @@ final class QuelytApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, N
         }
          table.rowHeight = 27; table.usesAlternatingRowBackgroundColors = true; table.columnAutoresizingStyle = .noColumnAutoresizing; table.setAccessibilityLabel("Query results")
         let grid = NSScrollView(); grid.documentView = table; grid.hasVerticalScroller = true; grid.hasHorizontalScroller = true; grid.borderType = .bezelBorder
+        grid.setContentHuggingPriority(.defaultLow, for: .vertical)
+        grid.setContentCompressionResistancePriority(.defaultLow, for: .vertical)
+        grid.heightAnchor.constraint(greaterThanOrEqualToConstant: 140).isActive = true
         let resultTitle = NSTextField(labelWithString: "RESULTS"); resultTitle.font = .systemFont(ofSize: 11, weight: .medium); resultTitle.textColor = .secondaryLabelColor
-        for view in [queryTitle, editorScroll, resultTitle, grid] { content.addArrangedSubview(view) }
-        for view in [editorScroll, grid] { view.widthAnchor.constraint(equalTo: content.widthAnchor).isActive = true }
+        chartHeight = chartView.heightAnchor.constraint(equalToConstant: 0)
+        chartHeight.isActive = true
+        chartView.setContentHuggingPriority(.required, for: .vertical)
+        chartView.setContentCompressionResistancePriority(.required, for: .vertical)
+        chartView.setAccessibilityRole(.image)
+        for view in [queryTitle, editorScroll, resultTitle, grid, chartView] { content.addArrangedSubview(view) }
+        for view in [editorScroll, grid, chartView] { view.widthAnchor.constraint(equalTo: content.widthAnchor).isActive = true }
         body.addArrangedSubview(sidebar); body.addArrangedSubview(content)
         content.widthAnchor.constraint(equalTo: body.widthAnchor, constant: -225).isActive = true
         content.heightAnchor.constraint(equalTo: body.heightAnchor).isActive = true; sidebar.heightAnchor.constraint(equalTo: body.heightAnchor).isActive = true
@@ -137,7 +215,8 @@ final class QuelytApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, N
         runButton.isEnabled = !busy && selectedURL != nil; profileButton.isEnabled = !busy && selectedURL != nil; cancelButton.isEnabled = busy; editor.isEditable = !busy
     }
     @objc func profile() {
-        editor.string = "SELECT COUNT(*) AS row_count\nFROM dataset;"; runQuery()
+        guard let url = selectedURL else { return }
+        startWorker(["path": url.path, "action": "profile", "timeout_seconds": 15])
     }
     @objc func cancelQuery() {
         guard let process = process else { return }; cancelled = true; status.stringValue = "Cancelling…"; stop(process)
@@ -147,15 +226,20 @@ final class QuelytApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, N
         DispatchQueue.main.asyncAfter(deadline: .now() + 1) { if p.isRunning { kill(p.processIdentifier, SIGKILL) } }
     }
     @objc func runQuery() {
-        guard process == nil, let url = selectedURL else { return }
-        let sql = editor.string
-        guard let input = try? JSONSerialization.data(withJSONObject: ["path": url.path, "sql": sql, "timeout_seconds": 15]) else { return }
+        guard let url = selectedURL else { return }
+        startWorker(["path": url.path, "sql": editor.string, "timeout_seconds": 15])
+    }
+    func startWorker(_ body: [String: Any]) {
+        guard process == nil, selectedURL != nil else { return }
+        guard let input = try? JSONSerialization.data(withJSONObject: body) else { return }
         let p = Process(); p.executableURL = URL(fileURLWithPath: workspace + "/.venv/bin/python")
         p.arguments = ["-I", "-B", workspace + "/src/quelyt/worker.py"]
         p.environment = ["PATH": "/usr/bin:/bin", "PYTHONIOENCODING": "utf-8", "PYTHONDONTWRITEBYTECODE": "1"]
         let stdin = Pipe(); let stdout = Pipe(); let stderr = Pipe(); p.standardInput = stdin; p.standardOutput = stdout; p.standardError = stderr
         let id = UUID(); activeID = id; cancelled = false; timedOut = false
-        rows = []; table.reloadData(); status.stringValue = "Reading selected data and running query…"; setBusy(true)
+        rows = []; table.reloadData(); setChartVisible(false); chartView.kind = "none"
+        workerStarted = Date.timeIntervalSinceReferenceDate
+        status.stringValue = "Reading selected data and running query…"; setBusy(true)
         do { try p.run() } catch { status.stringValue = "Cannot start worker: \(error.localizedDescription). Run the setup commands in README."; setBusy(false); return }
         process = p
         stdin.fileHandleForWriting.write(input); try? stdin.fileHandleForWriting.close()
@@ -170,21 +254,29 @@ final class QuelytApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, N
             DispatchQueue.main.async {
                 guard let self = self, self.activeID == id else { return }
                 self.process = nil; self.activeID = nil; self.setBusy(false)
+                let roundTrip = (Date.timeIntervalSinceReferenceDate - self.workerStarted) * 1000
                 self.recordSmoke(response)
-                if self.cancelled { self.status.stringValue = "Cancelled. Your source file is unchanged."; return }
-                if self.timedOut { self.status.stringValue = "Stopped after the 30-second operation limit."; return }
-                guard let response = response else { self.status.stringValue = "Worker stopped without a result (exit \(p.terminationStatus)). Try a smaller query."; return }
-                guard response["ok"] as? Bool == true else { self.status.stringValue = response["error"] as? String ?? "Query failed."; return }
+                self.recordCompare(response, roundTrip: roundTrip)
+                if self.cancelled { self.status.stringValue = "Cancelled. Your source file is unchanged."; self.setChartVisible(false); return }
+                if self.timedOut { self.status.stringValue = "Stopped after the 30-second operation limit."; self.setChartVisible(false); return }
+                guard let response = response else { self.status.stringValue = "Worker stopped without a result (exit \(p.terminationStatus)). Try a smaller query."; self.setChartVisible(false); return }
+                guard response["ok"] as? Bool == true else { self.status.stringValue = response["error"] as? String ?? "Query failed."; self.setChartVisible(false); return }
+                if response["action"] as? String == "profile", let sql = response["sql"] as? String { self.editor.string = sql }
                 self.rows = response["rows"] as? [[Any]] ?? []; self.columns = response["columns"] as? [[String: Any]] ?? []
                 for col in self.table.tableColumns { self.table.removeTableColumn(col) }
                 for (index, column) in self.columns.enumerated() { let col = NSTableColumn(identifier: NSUserInterfaceItemIdentifier(String(index))); col.title = column["name"] as? String ?? "Column"; col.width = 160; self.table.addTableColumn(col) }
                 self.table.reloadData()
-                let fields = response["schema"] as? [[String: String]] ?? []
-                self.schema.string = "dataset\n\n" + fields.map { "\($0["name"] ?? "")\n\($0["type"] ?? "")\n" }.joined(separator: "\n")
+                self.schema.string = self.schemaText(response)
+                let fields = response["schema"] as? [[String: Any]] ?? []
                 self.detail.stringValue = "\(response["dataset_rows"] ?? 0) rows · \(fields.count) columns · temporary snapshot"
+                self.updateChart(response)
                 let clipped = response["truncated"] as? Bool == true || response["cells_truncated"] as? Bool == true
                 let elapsed = (response["elapsed_ms"] as? NSNumber)?.doubleValue ?? 0
-                self.status.stringValue = "\(self.rows.count) result rows · \(String(format: "%.1f", elapsed)) ms including import" + (clipped ? " · Result truncated to display limits" : "")
+                let chart = (response["chart"] as? [String: Any])?["kind"] as? String
+                var message = "\(self.rows.count) result rows · \(String(format: "%.1f", elapsed)) ms including import"
+                if clipped { message += " · Result truncated to display limits" }
+                if chart == "bar" || chart == "line" { message += " · \(chart!) chart from this query" }
+                self.status.stringValue = message
                 if ProcessInfo.processInfo.environment["QUELYT_BENCHMARK"] == "1" {
                     DispatchQueue.main.async {
                         self.window.displayIfNeeded()
@@ -195,6 +287,7 @@ final class QuelytApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, N
                 if let flag = CommandLine.arguments.firstIndex(of: "--snapshot"), CommandLine.arguments.count > flag + 1 {
                     let output = CommandLine.arguments[flag + 1]
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                        self.window.layoutIfNeeded()
                         guard let view = self.window.contentView, let bitmap = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { return }
                         view.cacheDisplay(in: view.bounds, to: bitmap)
                         if let png = bitmap.representation(using: .png, properties: [:]) { try? png.write(to: URL(fileURLWithPath: output)) }
@@ -206,12 +299,14 @@ final class QuelytApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, N
     // Integration harness invokes the same action methods; it does not synthesize OS input.
     func recordSmoke(_ response: [String: Any]?) {
         guard let flag = CommandLine.arguments.firstIndex(of: "--smoke-test"), CommandLine.arguments.count > flag + 1 else { return }
-        let names = ["native_open_preview", "native_count_action", "native_write_rejection", "native_cancel_action"]
-        let values = response?["rows"] as? [[String]] ?? []
+        let names = ["native_open_preview", "native_profile_action", "native_write_rejection", "native_cancel_action"]
         let passed: Bool
         switch smokeStage {
         case 0: passed = response?["ok"] as? Bool == true && (response?["rows"] as? [[Any]])?.count == 200
-        case 1: passed = response?["ok"] as? Bool == true && values == [["1000000"]]
+        case 1:
+            let profile = response?["profile"] as? [[String: Any]] ?? []
+            let count = (response?["dataset_rows"] as? NSNumber)?.intValue
+            passed = response?["ok"] as? Bool == true && count == 1_000_000 && !profile.isEmpty
         case 2: passed = response?["ok"] as? Bool == false && response?["kind"] as? String == "PolicyError"
         default: passed = cancelled && process == nil
         }
@@ -230,6 +325,154 @@ final class QuelytApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, N
                 NSApp.terminate(nil)
             }
         }
+    }
+    func compareOutput() -> String? {
+        guard let flag = CommandLine.arguments.firstIndex(of: "--compare"), CommandLine.arguments.count > flag + 1 else { return nil }
+        return CommandLine.arguments[flag + 1]
+    }
+    func sampleStats(_ xs: [Double]) -> [String: Any] {
+        let rounded = xs.map { ($0 * 100).rounded() / 100 }
+        let sorted = rounded.sorted()
+        let median = sorted.isEmpty ? 0 : sorted[sorted.count / 2]
+        let p95 = sorted.isEmpty ? 0 : sorted[Int(Double(sorted.count - 1) * 0.95)]
+        return ["runs_ms": rounded, "median_ms": median, "p95_ms": p95]
+    }
+    func showSyntheticGrid() {
+        columns = [["name": "synthetic_id"], ["name": "region"], ["name": "amount"]]
+        rows.removeAll(keepingCapacity: true)
+        rows.reserveCapacity(100_000)
+        for i in 0..<100_000 {
+            let region: String = i % 3 == 0 ? "West" : "East"
+            rows.append([String(i), region, String(i % 100)])
+        }
+        for col in table.tableColumns { table.removeTableColumn(col) }
+        for (index, column) in columns.enumerated() {
+            let col = NSTableColumn(identifier: NSUserInterfaceItemIdentifier(String(index)))
+            col.title = column["name"] as? String ?? "Column"; col.width = 160; table.addTableColumn(col)
+        }
+        table.reloadData(); window.displayIfNeeded()
+    }
+    func finishCompare() {
+        guard let output = compareOutput() else { return }
+        let createStart = Date.timeIntervalSinceReferenceDate
+        showSyntheticGrid()
+        let createMs = (Date.timeIntervalSinceReferenceDate - createStart) * 1000
+        var scroll: [Double] = []
+        for index in 0..<120 {
+            let started = Date.timeIntervalSinceReferenceDate
+            table.scrollRowToVisible(min(index * 64, rows.count - 1))
+            table.displayIfNeeded()
+            scroll.append((Date.timeIntervalSinceReferenceDate - started) * 1000)
+        }
+        let editStart = Date.timeIntervalSinceReferenceDate
+        editor.string = String(repeating: "SELECT region, SUM(amount) FROM dataset GROUP BY region;\n", count: 2000)
+        window.displayIfNeeded()
+        let editMs = (Date.timeIntervalSinceReferenceDate - editStart) * 1000
+        editor.string = "SELECT region, SUM(amount) AS revenue\nFROM dataset\nGROUP BY region\nORDER BY region;"
+        var stream: [Double] = []
+        var last = Date.timeIntervalSinceReferenceDate
+        for _ in 0..<120 {
+            window.displayIfNeeded()
+            let now = Date.timeIntervalSinceReferenceDate
+            stream.append((now - last) * 1000)
+            last = now
+        }
+        let metrics: [String: Any] = [
+            "host": "native",
+            "kind": "disposable framework probe",
+            "query": ["preview": sampleStats(previewTimes), "aggregate": sampleStats(aggregateTimes)],
+            "write_rejected": compareWriteRejected,
+            "cancelled": compareCancelled,
+            "synthetic_grid_create_ms": (createMs * 100).rounded() / 100,
+            "synthetic_grid_scroll_frames": sampleStats(scroll),
+            "live_table_rows": table.numberOfRows,
+            "editor_112k_chars_ms": (editMs * 100).rounded() / 100,
+            "stream_frame_intervals": sampleStats(stream),
+            "stream_note": "Native stream samples are displayIfNeeded polling, not vsync requestAnimationFrame."
+        ]
+        if let data = try? JSONSerialization.data(withJSONObject: metrics, options: [.prettyPrinted, .sortedKeys]) {
+            try? data.write(to: URL(fileURLWithPath: output))
+        }
+        NSApp.terminate(nil)
+    }
+    func recordCompare(_ response: [String: Any]?, roundTrip: Double) {
+        guard compareOutput() != nil else { return }
+        switch compareStage {
+        case 0:
+            previewTimes.append(roundTrip)
+            if previewTimes.count < 5 {
+                editor.string = "SELECT *\nFROM dataset\nLIMIT 200;"
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { self.runQuery() }
+            } else {
+                compareStage = 1
+                editor.string = "SELECT region, SUM(amount) AS revenue FROM dataset GROUP BY region ORDER BY region;"
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { self.runQuery() }
+            }
+        case 1:
+            let values = response?["rows"] as? [[Any]] ?? []
+            let ok = response?["ok"] as? Bool == true && values.count == 2
+            if ok { aggregateTimes.append(roundTrip) }
+            if aggregateTimes.count < 5 {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { self.runQuery() }
+            } else {
+                compareStage = 2
+                editor.string = "DELETE FROM dataset"
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { self.runQuery() }
+            }
+        case 2:
+            compareWriteRejected = response?["ok"] as? Bool == false && response?["kind"] as? String == "PolicyError"
+            compareStage = 3
+            editor.string = "SELECT SUM(a.amount * b.amount) FROM dataset a CROSS JOIN dataset b"
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                self.runQuery()
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { self.cancelQuery() }
+            }
+        default:
+            compareCancelled = cancelled
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { self.finishCompare() }
+        }
+    }
+    func schemaText(_ response: [String: Any]) -> String {
+        if let profile = response["profile"] as? [[String: Any]], !profile.isEmpty {
+            return "dataset\n\n" + profile.map { column in
+                let name = column["name"] as? String ?? ""
+                let type = column["type"] as? String ?? ""
+                let nullPct = column["null_pct"] as? NSNumber ?? 0
+                let distinct = column["distinct_count"] as? NSNumber ?? 0
+                var lines = ["\(name)", "\(type)", "null \(nullPct)% · distinct \(distinct)"]
+                var range: [String] = []
+                if let min = column["min"], !(min is NSNull) { range.append("min \(min)") }
+                if let max = column["max"], !(max is NSNull) { range.append("max \(max)") }
+                if !range.isEmpty { lines.append(range.joined(separator: " · ")) }
+                return lines.joined(separator: "\n")
+            }.joined(separator: "\n\n")
+        }
+        let fields = response["schema"] as? [[String: Any]] ?? []
+        return "dataset\n\n" + fields.map { "\($0["name"] as? String ?? "")\n\($0["type"] as? String ?? "")\n" }.joined(separator: "\n")
+    }
+    func updateChart(_ response: [String: Any]) {
+        let kind = (response["chart"] as? [String: Any])?["kind"] as? String ?? "none"
+        let values = response["values"] as? [[Any]] ?? []
+        let labels = values.map { row -> String in
+            guard let value = row.first else { return "" }
+            return value is NSNull ? "" : String(describing: value)
+        }
+        let numbers = values.compactMap { row -> Double? in
+            guard row.count > 1, let number = row[1] as? NSNumber else { return nil }
+            return number.doubleValue
+        }
+        let visible = (kind == "bar" || kind == "line") && numbers.count == labels.count && numbers.count >= 2
+        chartView.kind = visible ? kind : "none"
+        chartView.labels = visible ? labels : []
+        chartView.numbers = visible ? numbers : []
+        setChartVisible(visible)
+        chartView.setAccessibilityLabel(visible ? "\(kind) chart of the current query result" : "No chart")
+        chartView.needsDisplay = true
+    }
+    func setChartVisible(_ visible: Bool) {
+        chartHeight.constant = visible ? 168 : 0
+        window?.contentView?.layoutSubtreeIfNeeded()
+        chartView.needsDisplay = true
     }
     func numberOfRows(in tableView: NSTableView) -> Int { rows.count }
     func tableView(_ tableView: NSTableView, viewFor column: NSTableColumn?, row: Int) -> NSView? {

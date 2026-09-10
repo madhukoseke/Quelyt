@@ -10,7 +10,7 @@ All results use synthetic data on the [recorded machine](environment.md). Raw JS
 | E04 retrieval | 10/100/1k/5k synthetic tables: lexical and BM25 mean table recall 0.8, full schema 1.0. At 5k tables lexical five-question scan ~13 ms; selected context ~54 chars vs 229k full. Graph expansion did not fix synonym misses. | Avoid vector/graph infrastructure now. Toy names and distractors make this optimistic. No tokenizer, column recall or downstream SQL accuracy measured. Embeddings remain an unrun comparison. |
 | E05 investigation | Scripted three-query breakdown explains net -300 (-10%): West Enterprise -400, East Enterprise +100. | Action trace adds descriptive evidence beyond total comparison. NOT an LLM agent-vs-one-shot benchmark; causal explanation and model planning unvalidated. |
 | SQL safety | DuckDB read-only connection blocks DELETE but permits external CSV reads, COPY file writes and configuration mutation. External-access disable + configuration lock block tested external operations. Interrupt stopped huge cross join in 108 ms. | Read-only is insufficient. Restrict statement/function scope and engine access; bound execution and result size. OS confinement still required before untrusted agent release. |
-| E07 desktop | AppKit prototype compiled with local Swift CLT and launched, with 100k-row virtualized table and editable SQL. | Native baseline only. No Tauri/Electron equivalent built, no 60fps/cold-start claim. Query integration and native controls belong in next slice. |
+| E07 desktop | AppKit, Tauri and Electron probes ran the same worker: preview, aggregate, write reject, cancel. Native median dataset-ready 369 ms / ~82 MiB RSS; Tauri 506 ms / ~189 MiB including WebKit helpers; Electron 487 ms / ~368 MiB. | Keep Swift development shell. Not a packaging or 60fps winner. CodeMirror exists only in web probes. See [framework comparison](framework-comparison.md). |
 
 ## Reproduce
 
@@ -22,6 +22,7 @@ python3 -m venv .venv
 .venv/bin/python experiments/discovery/investigation.py
 .venv/bin/python experiments/discovery/local_ai.py
 .venv/bin/python experiments/local-postgres/run.py
+.venv/bin/python experiments/frameworks/measure_launch.py
 ```
 
 Local AI requires the existing local Ollama model. PostgreSQL script explicitly uses the installed EDB path and a temporary cluster; adapt the path on other machines. GUI build instructions are in the root README. Generated large fixtures are ignored.

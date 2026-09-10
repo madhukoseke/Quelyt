@@ -42,6 +42,14 @@ $('benchmark').onclick=async()=>{
   const scroll=[];for(let i=0;i<120;i++){const t=performance.now();$('viewport').scrollTop=i*1800;render();await frame();scroll.push(performance.now()-t);}m.synthetic_grid_scroll_frames=stats(scroll);m.live_dom_rows=$('visible').children.length;
   const editStart=performance.now();doc(('SELECT region, SUM(amount) FROM dataset GROUP BY region;\n').repeat(2000));await frame();m.editor_112k_chars_ms=+(performance.now()-editStart).toFixed(2);doc(aggregate);
   m.stream_frame_intervals=stats(await stream());await bridge.record(m);$('metrics').textContent=JSON.stringify(m,null,2);$('status').textContent='Comparison recorded locally. Details below.';
- }catch(e){m.error=String(e);$('metrics').textContent=JSON.stringify(m,null,2);await bridge.record(m);}finally{setBusy(false);await run(aggregate);}
+ }catch(e){m.error=String(e);$('metrics').textContent=JSON.stringify(m,null,2);await bridge.record(m);}
+ finally{
+  setBusy(false);await run(aggregate);
+  const auto=window.probe?.autoCompare || (window.__TAURI__?await window.__TAURI__.core.invoke('auto_compare').catch(()=>false):false);
+  if(auto){try{await (window.probe?.quit?.() || window.__TAURI__.core.invoke('quit'));}catch{}}
+ }
 };
-run().then(async()=>{await frame();await frame();bridge.ready();});
+run().then(async()=>{await frame();await frame();await bridge.ready();
+ const auto=window.probe?.autoCompare || (window.__TAURI__?await window.__TAURI__.core.invoke('auto_compare'):false);
+ if(auto) await $('benchmark').onclick();
+});

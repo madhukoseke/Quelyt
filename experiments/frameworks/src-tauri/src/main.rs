@@ -41,13 +41,17 @@ async fn query(state: tauri::State<'_, Worker>, sql: String, format: String) -> 
 fn cancel(state: tauri::State<'_, Worker>) { if let Some(c)=state.0.lock().unwrap().as_mut(){ let _=c.kill(); } }
 #[tauri::command]
 fn record(metrics: Value) -> Result<(), String> {
-    std::fs::write(root().join("experiments/frameworks/tauri-results.json"), metrics.to_string()).map_err(|e|e.to_string())
+    std::fs::write(root().join("experiments/frameworks/tauri-results.json"), serde_json::to_string_pretty(&metrics).unwrap_or_else(|_| metrics.to_string())).map_err(|e|e.to_string())
 }
 #[tauri::command]
 fn ready() { println!("QUELYT_READY"); let _=std::io::stdout().flush(); }
+#[tauri::command]
+fn auto_compare() -> bool { std::env::var("QUELYT_COMPARE").ok().as_deref() == Some("1") }
+#[tauri::command]
+fn quit() { std::process::exit(0); }
 fn main() {
     tauri::Builder::default().manage(Worker::default())
-        .invoke_handler(tauri::generate_handler![query,cancel,record,ready])
+        .invoke_handler(tauri::generate_handler![query,cancel,record,ready,auto_compare,quit])
         .on_window_event(|window,event| {if let tauri::WindowEvent::Destroyed=event {let state=window.state::<Worker>();if let Some(c)=state.0.lock().unwrap().as_mut(){let _=c.kill();};}})
         .run(tauri::generate_context!()).expect("Tauri experiment failed");
 }

@@ -22,7 +22,7 @@ results=[]
 # Alternate framework order to reduce a fixed-order cache/temperature bias.
 for run,order in enumerate([['native','tauri','electron'],['electron','native','tauri'],['tauri','electron','native']]):
     for name in order:
-        before=processes();started=time.perf_counter();env=os.environ.copy();env['QUELYT_BENCHMARK']='1'
+        before=processes();started=time.perf_counter();env=os.environ.copy();env['QUELYT_BENCHMARK']='1';env.pop('ELECTRON_RUN_AS_NODE',None)
         p=subprocess.Popen(candidates[name],stdout=subprocess.PIPE,stderr=subprocess.DEVNULL,env=env,start_new_session=True)
         selector=selectors.DefaultSelector();selector.register(p.stdout,selectors.EVENT_READ)
         ready=False
