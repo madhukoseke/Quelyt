@@ -4,7 +4,7 @@ Accepted decisions are scoped to the stated milestone. Proposed/provisional reco
 
 - [ADR-001 — Desktop framework](ADR-001-desktop-framework.md): Provisional
 - [ADR-002 — Analytical engine](ADR-002-analytical-engine.md): Accepted for P0
-- [ADR-003 — Application metadata](ADR-003-app-metadata.md): Proposed; deferred beyond M1
+- [ADR-003 — Application metadata](ADR-003-app-metadata.md): Accepted for local history
 - [ADR-004 — Bundled PostgreSQL](ADR-004-local-postgres.md): Accepted scope decision
 - [ADR-005 — AI runtime](ADR-005-ai-runtime.md): Provisional
 - [ADR-006 — Agent architecture](ADR-006-agent-architecture.md): Proposed

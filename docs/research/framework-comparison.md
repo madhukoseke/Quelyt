@@ -16,9 +16,9 @@ Fresh-process launch to first dataset-ready (`QUELYT_READY`), three alternating-
 
 | Shell | Median ready | Approx. RSS sum | Processes counted |
 |---|---|---|---|
-| Native | 369 ms | 82 MiB | 1 |
-| Tauri | 506 ms | 189 MiB | 1 + 3 new WebKit XPC helpers |
-| Electron | 487 ms | 368 MiB | 4 (main + helpers) |
+| Native | 423 ms | 84 MiB | 1 |
+| Tauri | 654 ms | 178 MiB | 1 + 3 new WebKit XPC helpers |
+| Electron | 690 ms | 367 MiB | 4 (main + helpers) |
 
 RSS sums descendants plus newly created WebKit helpers and may double-count shared pages. Native executable size still excludes Python/DuckDB.
 

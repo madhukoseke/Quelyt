@@ -12,8 +12,9 @@ flowchart TD
   P -->|external access disabled; configuration locked| D
   D --> R[Bounded rows / schema / errors / timings]
   R --> UI
+  UI --> H[(Local SQLite history)]
+  H -. recent sources and SQL traces .-> UI
   AI[Future local model] -. scoped query proposal .-> P
-  M[Future SQLite history] -. local action trace .-> UI
 ```
 
 M1 copies the selected file's logical contents into a transient in-memory table, then removes external access before running SQL. The selected file is never mutated. This deliberately trades repeated import cost for a clearer initial scope boundary. It is not the final lazy-Parquet design. Each request has a fresh process, hard deadline and capped output; cancel terminates that process. No listener or remote API exists in the application.
@@ -23,7 +24,7 @@ A process boundary improves cleanup, but is not an OS sandbox. Before generated 
 ## Actual repository shape
 
 - `apps/macos/`: native developer shell and bundle script.
-- `src/quelyt/`: small query worker, protocol and policy.
+- `src/quelyt/`: query worker, protocol, policy and SQLite history.
 - `tests/`: integration and adversarial policy fixtures.
 - `experiments/`: disposable engine, PostgreSQL, AI, retrieval and native probes with raw results.
 - `docs/research/`: sources, environment, measured results and limitations.

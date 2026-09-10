@@ -17,7 +17,7 @@
 - Python runtime and absolute workspace path are development-only. Bundle runtime/dependencies, resolve licenses and perform signed/notarized clean-machine testing before distribution.
 - CTEs, UNION and unapproved functions are deliberately rejected; this is not a full SQL-client grammar.
 - Every query reimports. Large-file lazy opening, persistent dataset handles and copy-vs-open UX need measurement.
-- Result values in the grid remain display strings. A parallel typed `values` / `column_kinds` payload exists for bar/line charting; it is not a full export model. Dataset profile covers null %, distinct count and min/max. Top-k values, histograms, relationship guesses, history and AI remain later work.
+- Result values in the grid remain display strings. A parallel typed `values` / `column_kinds` payload exists for bar/line charting; it is not a full export model. Dataset profile covers null %, distinct count and min/max. Top-k values, histograms, relationship guesses and AI remain later work. Local SQL history does not store result grids.
 - No end-to-end agent, embeddings comparison, paid service, real database connection or production packaging was tested.
 
 **Status:** M1 implementation and automated core checks delivered; native physical-interaction acceptance remains open. Sprint 0 is complete as an evidence-based discovery deliverable, not as validation of all hypotheses. Do not call this the complete MVP.
@@ -32,3 +32,11 @@ The [OS isolation experiment](../../experiments/isolation/README.md) successfull
 ## Continuation — profile and charts
 
 The worker now returns typed `values` and `column_kinds` alongside string grid rows, still inside the 2 MiB JSON budget. `action: profile` computes per-column null %, distinct count and min/max in DuckDB after the transient snapshot, records the generated SQL, and does not use the user-SQL allowlist. Two-column results with 2–24 untruncated rows and a numeric Y axis suggest `bar` or `line`; the Swift shell draws that chart from the executed SQL. This is not a general chart grammar or Tableau replacement. The native smoke harness checks profile instead of Count rows.
+
+## Continuation — local history
+
+SQLite in `~/Library/Application Support/dev.quelyt.desktop/history.sqlite` stores action traces (SQL, ok/error, timing, chart kind, source path) and recent datasets. Result grids and credentials are not stored. Oldest traces prune after 500. The native shell lists history, reopens the last readable file on launch, and offers Open Recent / delete / clear. Smoke, compare and launch-benchmark runs do not write history. This is not crash-restore of in-flight queries or named saved-query folders.
+
+## Continuation — held-out AI eval
+
+The 50-case held-out suite (aggregations, joins, ambiguity, attribution, safety) runs against the existing local Ollama model only. **EXPERIMENTAL RESULT:** llama3.2:1b failed the quality gates (7/30 supported denotations, 6/20 expected clarification/refusal) with 0 unsafe executions in the harness and 2 classified unsafe attempts. The application still has no model integration. OS sandbox and packaging gates are unchanged. See [held-out eval](../evals/held-out/README.md).

@@ -3,7 +3,8 @@ set -euo pipefail
 QUELYT_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 QUELYT_APP="$QUELYT_ROOT/.build/Quelyt.app"
 mkdir -p "$QUELYT_APP/Contents/MacOS"
-swiftc -O -module-cache-path /tmp/quelyt-swift-cache "$QUELYT_ROOT/apps/macos/Quelyt.swift" -o "$QUELYT_APP/Contents/MacOS/Quelyt"
+cp "$QUELYT_ROOT/apps/macos/Quelyt.swift" "$QUELYT_ROOT/.build/main.swift"
+swiftc -O -module-cache-path /tmp/quelyt-swift-cache "$QUELYT_ROOT/apps/macos/SQLEditor.swift" "$QUELYT_ROOT/.build/main.swift" -o "$QUELYT_APP/Contents/MacOS/Quelyt"
 python3 - "$QUELYT_APP" "$QUELYT_ROOT" <<'PY'
 import pathlib,plistlib,sys
 p=pathlib.Path(sys.argv[1])/'Contents/Info.plist'

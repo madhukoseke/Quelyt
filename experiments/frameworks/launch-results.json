@@ -3,13 +3,13 @@
     "framework": "native",
     "run": 1,
     "ready": true,
-    "fresh_process_to_dataset_ready_ms": 471.54,
-    "rss_kib_sum": 84144,
+    "fresh_process_to_dataset_ready_ms": 533.61,
+    "rss_kib_sum": 85824,
     "processes": [
       {
-        "pid": 168,
-        "ppid": 166,
-        "rss_kib": 84144,
+        "pid": 9562,
+        "ppid": 9560,
+        "rss_kib": 85824,
         "executable": "/Users/madhukoseke/Documents/Projects/Quelyt/.build/Quelyt.app/Contents/MacOS/Quelyt"
       }
     ],
@@ -19,31 +19,31 @@
     "framework": "tauri",
     "run": 1,
     "ready": true,
-    "fresh_process_to_dataset_ready_ms": 518.92,
-    "rss_kib_sum": 193696,
+    "fresh_process_to_dataset_ready_ms": 653.68,
+    "rss_kib_sum": 182400,
     "processes": [
       {
-        "pid": 204,
-        "ppid": 166,
-        "rss_kib": 82576,
+        "pid": 9612,
+        "ppid": 9560,
+        "rss_kib": 74448,
         "executable": "/Users/madhukoseke/Documents/Projects/Quelyt/experiments/frameworks/src-tauri/target/release/quelyt-tauri-probe"
       },
       {
-        "pid": 206,
+        "pid": 9614,
         "ppid": 1,
-        "rss_kib": 34912,
+        "rss_kib": 33008,
         "executable": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU"
       },
       {
-        "pid": 207,
+        "pid": 9615,
         "ppid": 1,
-        "rss_kib": 60608,
+        "rss_kib": 59888,
         "executable": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent"
       },
       {
-        "pid": 208,
+        "pid": 9616,
         "ppid": 1,
-        "rss_kib": 15600,
+        "rss_kib": 15056,
         "executable": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking"
       }
     ],
@@ -53,31 +53,31 @@
     "framework": "electron",
     "run": 1,
     "ready": true,
-    "fresh_process_to_dataset_ready_ms": 798.51,
-    "rss_kib_sum": 376832,
+    "fresh_process_to_dataset_ready_ms": 967.98,
+    "rss_kib_sum": 330288,
     "processes": [
       {
-        "pid": 236,
-        "ppid": 166,
-        "rss_kib": 136272,
+        "pid": 9686,
+        "ppid": 9560,
+        "rss_kib": 121824,
         "executable": "/Users/madhukoseke/Documents/Projects/Quelyt/experiments/frameworks/node_modules/electron/dist/Electron.app/Contents/MacOS/Electron"
       },
       {
-        "pid": 239,
-        "ppid": 236,
-        "rss_kib": 87072,
+        "pid": 9689,
+        "ppid": 9686,
+        "rss_kib": 77184,
         "executable": "/Users/madhukoseke/Documents/Projects/Quelyt/experiments/frameworks/node_modules/electron/dist/Electron.app/Contents/Frameworks/Electron Helper.app/Contents/MacOS/Electron Helper"
       },
       {
-        "pid": 240,
-        "ppid": 236,
-        "rss_kib": 37088,
+        "pid": 9690,
+        "ppid": 9686,
+        "rss_kib": 31952,
         "executable": "/Users/madhukoseke/Documents/Projects/Quelyt/experiments/frameworks/node_modules/electron/dist/Electron.app/Contents/Frameworks/Electron Helper.app/Contents/MacOS/Electron Helper"
       },
       {
-        "pid": 241,
-        "ppid": 236,
-        "rss_kib": 116400,
+        "pid": 9691,
+        "ppid": 9686,
+        "rss_kib": 99328,
         "executable": "/Users/madhukoseke/Documents/Projects/Quelyt/experiments/frameworks/node_modules/electron/dist/Electron.app/Contents/Frameworks/Electron Helper (Renderer).app/Contents/MacOS/Electron Helper (Renderer)"
       }
     ],
@@ -87,31 +87,31 @@
     "framework": "electron",
     "run": 2,
     "ready": true,
-    "fresh_process_to_dataset_ready_ms": 486.7,
-    "rss_kib_sum": 375648,
+    "fresh_process_to_dataset_ready_ms": 689.85,
+    "rss_kib_sum": 375600,
     "processes": [
       {
-        "pid": 283,
-        "ppid": 166,
-        "rss_kib": 136320,
+        "pid": 9859,
+        "ppid": 9560,
+        "rss_kib": 135808,
         "executable": "/Users/madhukoseke/Documents/Projects/Quelyt/experiments/frameworks/node_modules/electron/dist/Electron.app/Contents/MacOS/Electron"
       },
       {
-        "pid": 284,
-        "ppid": 283,
-        "rss_kib": 85632,
+        "pid": 9880,
+        "ppid": 9859,
+        "rss_kib": 84928,
         "executable": "/Users/madhukoseke/Documents/Projects/Quelyt/experiments/frameworks/node_modules/electron/dist/Electron.app/Contents/Frameworks/Electron Helper.app/Contents/MacOS/Electron Helper"
       },
       {
-        "pid": 285,
-        "ppid": 283,
-        "rss_kib": 37008,
+        "pid": 9881,
+        "ppid": 9859,
+        "rss_kib": 38336,
         "executable": "/Users/madhukoseke/Documents/Projects/Quelyt/experiments/frameworks/node_modules/electron/dist/Electron.app/Contents/Frameworks/Electron Helper.app/Contents/MacOS/Electron Helper"
       },
       {
-        "pid": 286,
-        "ppid": 283,
-        "rss_kib": 116688,
+        "pid": 9882,
+        "ppid": 9859,
+        "rss_kib": 116528,
         "executable": "/Users/madhukoseke/Documents/Projects/Quelyt/experiments/frameworks/node_modules/electron/dist/Electron.app/Contents/Frameworks/Electron Helper (Renderer).app/Contents/MacOS/Electron Helper (Renderer)"
       }
     ],
@@ -121,13 +121,13 @@
     "framework": "native",
     "run": 2,
     "ready": true,
-    "fresh_process_to_dataset_ready_ms": 368.51,
-    "rss_kib_sum": 83968,
+    "fresh_process_to_dataset_ready_ms": 351.08,
+    "rss_kib_sum": 86688,
     "processes": [
       {
-        "pid": 353,
-        "ppid": 166,
-        "rss_kib": 83968,
+        "pid": 10021,
+        "ppid": 9560,
+        "rss_kib": 86688,
         "executable": "/Users/madhukoseke/Documents/Projects/Quelyt/.build/Quelyt.app/Contents/MacOS/Quelyt"
       }
     ],
@@ -137,31 +137,31 @@
     "framework": "tauri",
     "run": 2,
     "ready": true,
-    "fresh_process_to_dataset_ready_ms": 466.64,
-    "rss_kib_sum": 195216,
+    "fresh_process_to_dataset_ready_ms": 708.04,
+    "rss_kib_sum": 195088,
     "processes": [
       {
-        "pid": 404,
-        "ppid": 166,
-        "rss_kib": 83216,
+        "pid": 10084,
+        "ppid": 9560,
+        "rss_kib": 81344,
         "executable": "/Users/madhukoseke/Documents/Projects/Quelyt/experiments/frameworks/src-tauri/target/release/quelyt-tauri-probe"
       },
       {
-        "pid": 405,
+        "pid": 10088,
         "ppid": 1,
-        "rss_kib": 35840,
+        "rss_kib": 36192,
         "executable": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU"
       },
       {
-        "pid": 406,
+        "pid": 10089,
         "ppid": 1,
-        "rss_kib": 60992,
+        "rss_kib": 62144,
         "executable": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent"
       },
       {
-        "pid": 408,
+        "pid": 10090,
         "ppid": 1,
-        "rss_kib": 15168,
+        "rss_kib": 15408,
         "executable": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking"
       }
     ],
@@ -171,31 +171,31 @@
     "framework": "tauri",
     "run": 3,
     "ready": true,
-    "fresh_process_to_dataset_ready_ms": 505.82,
-    "rss_kib_sum": 193264,
+    "fresh_process_to_dataset_ready_ms": 597.79,
+    "rss_kib_sum": 165200,
     "processes": [
       {
-        "pid": 438,
-        "ppid": 166,
-        "rss_kib": 82624,
+        "pid": 10173,
+        "ppid": 9560,
+        "rss_kib": 71328,
         "executable": "/Users/madhukoseke/Documents/Projects/Quelyt/experiments/frameworks/src-tauri/target/release/quelyt-tauri-probe"
       },
       {
-        "pid": 445,
+        "pid": 10174,
         "ppid": 1,
-        "rss_kib": 34656,
+        "rss_kib": 35184,
         "executable": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.GPU.xpc/Contents/MacOS/com.apple.WebKit.GPU"
       },
       {
-        "pid": 446,
+        "pid": 10175,
         "ppid": 1,
-        "rss_kib": 60688,
+        "rss_kib": 47744,
         "executable": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent"
       },
       {
-        "pid": 447,
+        "pid": 10176,
         "ppid": 1,
-        "rss_kib": 15296,
+        "rss_kib": 10944,
         "executable": "/System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.Networking.xpc/Contents/MacOS/com.apple.WebKit.Networking"
       }
     ],
@@ -205,31 +205,31 @@
     "framework": "electron",
     "run": 3,
     "ready": true,
-    "fresh_process_to_dataset_ready_ms": 479.63,
-    "rss_kib_sum": 377568,
+    "fresh_process_to_dataset_ready_ms": 560.24,
+    "rss_kib_sum": 375392,
     "processes": [
       {
-        "pid": 478,
-        "ppid": 166,
-        "rss_kib": 136320,
+        "pid": 10247,
+        "ppid": 9560,
+        "rss_kib": 133568,
         "executable": "/Users/madhukoseke/Documents/Projects/Quelyt/experiments/frameworks/node_modules/electron/dist/Electron.app/Contents/MacOS/Electron"
       },
       {
-        "pid": 480,
-        "ppid": 478,
-        "rss_kib": 88016,
+        "pid": 10248,
+        "ppid": 10247,
+        "rss_kib": 86944,
         "executable": "/Users/madhukoseke/Documents/Projects/Quelyt/experiments/frameworks/node_modules/electron/dist/Electron.app/Contents/Frameworks/Electron Helper.app/Contents/MacOS/Electron Helper"
       },
       {
-        "pid": 481,
-        "ppid": 478,
-        "rss_kib": 36832,
+        "pid": 10249,
+        "ppid": 10247,
+        "rss_kib": 37408,
         "executable": "/Users/madhukoseke/Documents/Projects/Quelyt/experiments/frameworks/node_modules/electron/dist/Electron.app/Contents/Frameworks/Electron Helper.app/Contents/MacOS/Electron Helper"
       },
       {
-        "pid": 482,
-        "ppid": 478,
-        "rss_kib": 116400,
+        "pid": 10250,
+        "ppid": 10247,
+        "rss_kib": 117472,
         "executable": "/Users/madhukoseke/Documents/Projects/Quelyt/experiments/frameworks/node_modules/electron/dist/Electron.app/Contents/Frameworks/Electron Helper (Renderer).app/Contents/MacOS/Electron Helper (Renderer)"
       }
     ],
@@ -239,13 +239,13 @@
     "framework": "native",
     "run": 3,
     "ready": true,
-    "fresh_process_to_dataset_ready_ms": 316.73,
-    "rss_kib_sum": 83968,
+    "fresh_process_to_dataset_ready_ms": 422.81,
+    "rss_kib_sum": 85312,
     "processes": [
       {
-        "pid": 529,
-        "ppid": 166,
-        "rss_kib": 83968,
+        "pid": 10316,
+        "ppid": 9560,
+        "rss_kib": 85312,
         "executable": "/Users/madhukoseke/Documents/Projects/Quelyt/.build/Quelyt.app/Contents/MacOS/Quelyt"
       }
     ],
