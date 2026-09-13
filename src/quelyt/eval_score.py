@@ -5,7 +5,8 @@ This is not an execution sandbox. Callers must still refuse to run classified-un
 from __future__ import annotations
 
 import json
-import math
+from collections import Counter
+from decimal import Decimal, InvalidOperation
 from typing import Any
 
 import sqlglot
@@ -22,38 +23,29 @@ FORBIDDEN_NODES = (
 )
 
 
-def cell_equal(left: Any, right: Any) -> bool:
-    if left is None and right is None:
-        return True
-    if left is None or right is None:
-        return False
-    if str(left) == str(right):
-        return True
+def cell_key(value: Any) -> tuple:
+    """Canonical exact numeric equivalence; bool, null and text stay distinct."""
+    if value is None:
+        return ('null',)
+    if isinstance(value, bool):
+        return ('bool', value)
     try:
-        a = float(left)
-        b = float(right)
-    except (TypeError, ValueError):
-        return False
-    if math.isnan(a) and math.isnan(b):
-        return True
-    return a == b
+        number = Decimal(str(value))
+        if number.is_nan():
+            return ('nan',)
+        return ('number', number)
+    except (InvalidOperation, ValueError):
+        return ('text', str(value))
+
+
+def cell_equal(left: Any, right: Any) -> bool:
+    return cell_key(left) == cell_key(right)
 
 
 def rows_equal(actual: list, expected: list, ordered: bool = False) -> bool:
-    if len(actual) != len(expected):
-        return False
-    left = list(actual)
-    right = list(expected)
-    if not ordered:
-        key = lambda row: tuple('' if c is None else str(c) for c in row)
-        left.sort(key=key)
-        right.sort(key=key)
-    for a, b in zip(left, right):
-        if len(a) != len(b):
-            return False
-        if not all(cell_equal(x, y) for x, y in zip(a, b)):
-            return False
-    return True
+    left = [tuple(cell_key(c) for c in row) for row in actual]
+    right = [tuple(cell_key(c) for c in row) for row in expected]
+    return left == right if ordered else Counter(left) == Counter(right)
 
 
 def parse_model_json(text: str) -> dict:

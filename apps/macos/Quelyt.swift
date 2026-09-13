@@ -45,7 +45,7 @@ final class ResultChartView: NSView {
     var numbers: [Double] = []
     override var isFlipped: Bool { true }
     override func draw(_ dirtyRect: NSRect) {
-        QuelytTheme.canvas.setFill(); dirtyRect.fill()
+        QuelytTheme.surface.setFill(); dirtyRect.fill()
         QuelytTheme.line.setStroke()
         let border = NSBezierPath(rect: bounds.insetBy(dx: 0.5, dy: 0.5)); border.lineWidth = 1; border.stroke()
         guard kind == "bar" || kind == "line", numbers.count >= 2, numbers.count == labels.count else { return }
@@ -59,7 +59,7 @@ final class ResultChartView: NSView {
         axes.move(to: NSPoint(x: plot.minX, y: plot.maxY)); axes.line(to: NSPoint(x: plot.maxX, y: plot.maxY))
         axes.move(to: NSPoint(x: plot.minX, y: plot.minY)); axes.line(to: NSPoint(x: plot.minX, y: plot.maxY))
         axes.stroke()
-        let teal = QuelytTheme.success
+        let series = QuelytTheme.chart
         if kind == "bar" {
             let slot = plot.width / count
             let width = slot * 0.62
@@ -68,7 +68,7 @@ final class ResultChartView: NSView {
                 let valueY = plot.maxY - CGFloat((value - low) / span) * plot.height
                 let height = max(abs(zeroY - valueY), 1)
                 let x = plot.minX + slot * CGFloat(index) + (slot - width) / 2
-                teal.withAlphaComponent(0.88).setFill()
+                series.withAlphaComponent(0.88).setFill()
                 NSBezierPath(roundedRect: NSRect(x: x, y: min(zeroY, valueY), width: width, height: height), xRadius: 2, yRadius: 2).fill()
             }
         } else {
@@ -80,7 +80,7 @@ final class ResultChartView: NSView {
                 )
                 if index == 0 { line.move(to: point) } else { line.line(to: point) }
             }
-            teal.setStroke(); line.stroke(); teal.setFill()
+            series.setStroke(); line.stroke(); series.setFill()
             for (index, value) in numbers.enumerated() {
                 let x = plot.minX + plot.width * CGFloat(index) / max(count - 1, 1)
                 let y = plot.maxY - CGFloat((value - low) / span) * plot.height
@@ -103,13 +103,33 @@ final class ResultChartView: NSView {
     }
 }
 
-final class QuelytApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, NSTableViewDelegate, NSToolbarDelegate {
+final class QuelytApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, NSTableViewDelegate, NSToolbarDelegate, NSSplitViewDelegate {
     var window: NSWindow!
     let editor = SQLEditor()
     let table = ResultsTableView()
     let status = NSTextField(wrappingLabelWithString: "Open a dataset to run a query.")
     let sidebar = WorkspaceSidebar()
+    let schema = SchemaInspector()
+    let historyPage = HistoryPage()
+    let insetHeader = InsetHeader()
+    let connectionsPage = HonestPage(
+        symbol: "link",
+        title: "Connections",
+        body: "Remote database connections are not in this developer build. Open a local CSV or Parquet file from Databases. Source files stay on this Mac.",
+        accessibilityID: "connections-unavailable"
+    )
+    let settingsPage = SettingsPage()
+    let aiPage = HonestPage(
+        symbol: "sparkles",
+        title: "AI is research-only",
+        body: "Talk to Data stays out of the product. The held-out evaluation did not meet quality gates. This app makes no model or network calls.",
+        accessibilityID: "ai-unavailable"
+    )
+    let databasesPage = NSView()
+    var workspaceSplit: NSSplitView!
     var split: NSSplitViewController!
+    var dataSplit: NSSplitView!
+    let palette = CommandPalette()
     var runItem: NSToolbarItem!
     var cancelItem: NSToolbarItem!
     var profileItem: NSToolbarItem!
@@ -148,7 +168,6 @@ final class QuelytApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, N
     var compareWriteRejected = false
     var compareCancelled = false
     var recentMenu: NSMenu!
-    let workspace = Bundle.main.object(forInfoDictionaryKey: "QuelytWorkspace") as? String ?? FileManager.default.currentDirectoryPath
 
     func skipHistory() -> Bool {
         compareOutput() != nil || CommandLine.arguments.contains("--smoke-test") || CommandLine.arguments.contains("--ui-checks") || ProcessInfo.processInfo.environment["QUELYT_BENCHMARK"] == "1"
@@ -170,22 +189,16 @@ final class QuelytApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, N
         contentRoot.wantsLayer = true; contentRoot.layer?.backgroundColor = QuelytTheme.canvas.cgColor
         contentRoot.openFile = { [weak self] url in self?.openDataset(url) }
         if let drop = sidebar.view as? DatasetDropView { drop.openFile = { [weak self] url in self?.openDataset(url) } }
-        let content = NSStackView(); content.orientation = .vertical; content.alignment = .leading; content.spacing = 10
-        content.translatesAutoresizingMaskIntoConstraints = false
-        content.edgeInsets = NSEdgeInsets(top: 12, left: 16, bottom: 10, right: 16)
-        let queryTitle = label("Query", size: 12, weight: .semibold)
-        let queryHint = label("SQL · ⌘ Return to run · Esc to complete", size: 10, color: QuelytTheme.inkMuted)
-        let queryHeader = NSStackView(views: [queryTitle, queryHint]); queryHeader.spacing = 12
+        schema.view.openFile = { [weak self] url in self?.openDataset(url) }
         editor.font = .monospacedSystemFont(ofSize: 13, weight: .regular); editor.string = "-- Open a CSV or Parquet file to start.\n-- Your table will be available as dataset."
         editor.isRichText = false; editor.allowsUndo = true; editor.isAutomaticQuoteSubstitutionEnabled = false; editor.isAutomaticDashSubstitutionEnabled = false; editor.isAutomaticTextReplacementEnabled = false
-        editor.drawsBackground = true; editor.backgroundColor = QuelytTheme.canvas; editor.insertionPointColor = QuelytTheme.ink
+        editor.drawsBackground = true; editor.backgroundColor = QuelytTheme.surface; editor.insertionPointColor = QuelytTheme.ink
         editor.textContainerInset = NSSize(width: 15, height: 14); editor.setAccessibilityLabel("SQL query")
-        let editorScroll = NSScrollView(); editorScroll.documentView = editor; editorScroll.hasVerticalScroller = true; editorScroll.drawsBackground = true; editorScroll.backgroundColor = QuelytTheme.canvas
-        QuelytTheme.hairlineLayer(editorScroll)
-        editor.minSize = NSSize(width: 0, height: 160); editor.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude); editor.isVerticallyResizable = true; editor.autoresizingMask = [.width]; editor.textContainer?.widthTracksTextView = true
-        editorScroll.heightAnchor.constraint(equalToConstant: 165).isActive = true
+        let editorScroll = NSScrollView(); editorScroll.documentView = editor; editorScroll.hasVerticalScroller = true; editorScroll.drawsBackground = true; editorScroll.backgroundColor = QuelytTheme.surface
+        QuelytTheme.cardLayer(editorScroll)
+        editor.minSize = NSSize(width: 0, height: 80); editor.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude); editor.isVerticallyResizable = true; editor.autoresizingMask = [.width]; editor.textContainer?.widthTracksTextView = true
         table.delegate = self; table.dataSource = self; table.allowsMultipleSelection = true; table.rowHeight = QuelytTheme.row; table.usesAlternatingRowBackgroundColors = false; table.columnAutoresizingStyle = .noColumnAutoresizing; table.setAccessibilityLabel("Query results")
-        table.backgroundColor = QuelytTheme.canvas; table.gridStyleMask = .solidVerticalGridLineMask; table.gridColor = QuelytTheme.line
+        table.backgroundColor = QuelytTheme.surface; table.gridStyleMask = .solidVerticalGridLineMask; table.gridColor = QuelytTheme.line
         table.selectedText = { [weak self] in
             guard let self = self, !self.table.selectedRowIndexes.isEmpty else { return nil }
             func quote(_ text: String) -> String {
@@ -197,43 +210,137 @@ final class QuelytApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, N
             return ([header] + selected).joined(separator: "\n")
         }
         let grid = resultScroll; grid.documentView = table; grid.hasVerticalScroller = true; grid.hasHorizontalScroller = true
-        resultContainer.wantsLayer = true; resultContainer.layer?.backgroundColor = QuelytTheme.canvas.cgColor; resultContainer.layer?.cornerRadius = QuelytTheme.radiusSm; resultContainer.layer?.borderWidth = QuelytTheme.hairline; resultContainer.layer?.borderColor = QuelytTheme.line.cgColor; resultContainer.layer?.masksToBounds = true
+        QuelytTheme.cardLayer(resultContainer, radius: QuelytTheme.radiusSm)
         resultContainer.addSubview(grid); grid.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([grid.leadingAnchor.constraint(equalTo: resultContainer.leadingAnchor),grid.trailingAnchor.constraint(equalTo: resultContainer.trailingAnchor),grid.topAnchor.constraint(equalTo: resultContainer.topAnchor),grid.bottomAnchor.constraint(equalTo: resultContainer.bottomAnchor)])
         statePanel.orientation = .vertical; statePanel.alignment = .centerX; statePanel.spacing = 12; statePanel.translatesAutoresizingMaskIntoConstraints = false
-        stateIcon.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 27, weight: .light); stateIcon.contentTintColor = QuelytTheme.brand
+        stateIcon.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 27, weight: .light); stateIcon.contentTintColor = QuelytTheme.accent
         stateTitle.font = .systemFont(ofSize: 18, weight: .medium); stateTitle.textColor = QuelytTheme.ink; stateDescription.font = .systemFont(ofSize: 12); stateDescription.textColor = QuelytTheme.inkMuted; stateDescription.alignment = .center; stateDescription.maximumNumberOfLines = 7
         stateOpenButton.target = self; stateOpenButton.action = #selector(openPanel); stateOpenButton.bezelStyle = .rounded
         stateSpinner.style = .spinning; stateSpinner.controlSize = .small; stateSpinner.isDisplayedWhenStopped = false
         for view in [stateIcon,stateSpinner,stateTitle,stateDescription,stateOpenButton] { statePanel.addArrangedSubview(view) }
-        stateDescription.widthAnchor.constraint(equalToConstant: 350).isActive = true
         resultContainer.addSubview(statePanel)
-        NSLayoutConstraint.activate([statePanel.centerXAnchor.constraint(equalTo: resultContainer.centerXAnchor),statePanel.centerYAnchor.constraint(equalTo: resultContainer.centerYAnchor)])
+        NSLayoutConstraint.activate([
+            statePanel.centerXAnchor.constraint(equalTo: resultContainer.centerXAnchor),
+            statePanel.centerYAnchor.constraint(equalTo: resultContainer.centerYAnchor),
+            stateDescription.widthAnchor.constraint(lessThanOrEqualTo: resultContainer.widthAnchor, constant: -32),
+            stateDescription.widthAnchor.constraint(lessThanOrEqualToConstant: 350)
+        ])
         resultSummary.font = .systemFont(ofSize: 11); resultSummary.textColor = QuelytTheme.inkMuted
+        resultSummary.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         resultFilter.placeholderString = "Filter returned rows"; resultFilter.target = self; resultFilter.action = #selector(filterResults); resultFilter.sendsSearchStringImmediately = true; resultFilter.setAccessibilityLabel("Filter returned results")
-        resultFilter.widthAnchor.constraint(equalToConstant: 170).isActive = true
+        resultFilter.controlSize = .small
+        resultFilter.appearance = NSAppearance(named: .darkAqua)
+        resultFilter.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        resultFilter.widthAnchor.constraint(greaterThanOrEqualToConstant: 80).isActive = true
         chartToggle.target = self; chartToggle.action = #selector(toggleChart); chartToggle.state = .on; chartToggle.isEnabled = false
-        exportButton.target = self; exportButton.bezelStyle = .rounded; exportButton.isEnabled = false
+        chartToggle.controlSize = .small
+        chartToggle.setContentHuggingPriority(.required, for: .horizontal)
+        exportButton.target = self; exportButton.bezelStyle = .roundRect; exportButton.isEnabled = false
+        exportButton.controlSize = .small
+        exportButton.appearance = NSAppearance(named: .darkAqua)
+        exportButton.setContentHuggingPriority(.required, for: .horizontal)
+        let queryMeta = label("SQL · ⌘ Return · Esc complete · ⌘K", size: 10, color: QuelytTheme.inkMuted)
+        let queryHeader = NSStackView(views: [label("Query", size: 12, weight: .semibold), queryMeta]); queryHeader.spacing = 12
+        queryHeader.alignment = .centerY
         let resultHeader = NSStackView(views: [label("Results", size: 12, weight: .semibold), resultSummary, resultFilter, chartToggle, exportButton]); resultHeader.spacing = 8
+        resultHeader.alignment = .centerY
         chartHeight = chartView.heightAnchor.constraint(equalToConstant: 0); chartHeight.isActive = true
         chartView.isHidden = true
-        QuelytTheme.hairlineLayer(chartView)
-        resultScroll.drawsBackground = true; resultScroll.backgroundColor = QuelytTheme.canvas
+        QuelytTheme.cardLayer(chartView)
+        resultScroll.drawsBackground = true; resultScroll.backgroundColor = QuelytTheme.surface
         status.font = .systemFont(ofSize: 11); status.textColor = QuelytTheme.inkMuted
-        for view in [queryHeader, editorScroll, resultHeader, resultContainer, chartView, status] { content.addArrangedSubview(view) }
-        for view in [editorScroll, resultContainer, chartView, status] { view.widthAnchor.constraint(equalTo: content.widthAnchor, constant: -32).isActive = true }
-        contentRoot.addSubview(content)
+        status.translatesAutoresizingMaskIntoConstraints = false
+        resultContainer.setContentHuggingPriority(.defaultLow, for: .vertical)
+        let resultsPane = NSStackView(views: [resultHeader, resultContainer, chartView])
+        resultsPane.orientation = .vertical
+        resultsPane.alignment = .leading
+        resultsPane.spacing = 8
+        for pane in [resultHeader, resultContainer, chartView] {
+            pane.widthAnchor.constraint(equalTo: resultsPane.widthAnchor).isActive = true
+        }
+        let editorPane = NSStackView(views: [queryHeader, editorScroll])
+        editorPane.orientation = .vertical
+        editorPane.alignment = .leading
+        editorPane.spacing = 8
+        queryHeader.widthAnchor.constraint(equalTo: editorPane.widthAnchor).isActive = true
+        editorScroll.widthAnchor.constraint(equalTo: editorPane.widthAnchor).isActive = true
+        dataSplit = NSSplitView()
+        dataSplit.isVertical = false
+        dataSplit.dividerStyle = .thin
+        dataSplit.delegate = self
+        dataSplit.addSubview(editorPane)
+        dataSplit.addSubview(resultsPane)
+        let queryColumn = NSView()
+        dataSplit.translatesAutoresizingMaskIntoConstraints = false
+        queryColumn.addSubview(dataSplit)
+        queryColumn.addSubview(status)
         NSLayoutConstraint.activate([
-            content.leadingAnchor.constraint(equalTo: contentRoot.leadingAnchor),
-            content.trailingAnchor.constraint(equalTo: contentRoot.trailingAnchor),
-            content.topAnchor.constraint(equalTo: contentRoot.topAnchor),
-            content.bottomAnchor.constraint(equalTo: contentRoot.bottomAnchor)
+            dataSplit.topAnchor.constraint(equalTo: queryColumn.topAnchor, constant: 12),
+            dataSplit.leadingAnchor.constraint(equalTo: queryColumn.leadingAnchor, constant: 12),
+            dataSplit.trailingAnchor.constraint(equalTo: queryColumn.trailingAnchor, constant: -16),
+            dataSplit.bottomAnchor.constraint(equalTo: status.topAnchor, constant: -10),
+            status.leadingAnchor.constraint(equalTo: queryColumn.leadingAnchor, constant: 12),
+            status.trailingAnchor.constraint(equalTo: queryColumn.trailingAnchor, constant: -16),
+            status.bottomAnchor.constraint(equalTo: queryColumn.bottomAnchor, constant: -12)
+        ])
+        let schemaPane = NSView()
+        schemaPane.wantsLayer = true
+        schemaPane.layer?.backgroundColor = QuelytTheme.canvas.cgColor
+        schema.view.translatesAutoresizingMaskIntoConstraints = false
+        schemaPane.addSubview(schema.view)
+        NSLayoutConstraint.activate([
+            schema.view.leadingAnchor.constraint(equalTo: schemaPane.leadingAnchor, constant: 12),
+            schema.view.trailingAnchor.constraint(equalTo: schemaPane.trailingAnchor, constant: -8),
+            schema.view.topAnchor.constraint(equalTo: schemaPane.topAnchor, constant: 12),
+            schema.view.bottomAnchor.constraint(equalTo: schemaPane.bottomAnchor, constant: -12)
+        ])
+        workspaceSplit = NSSplitView()
+        workspaceSplit.isVertical = true
+        workspaceSplit.dividerStyle = .thin
+        workspaceSplit.delegate = self
+        workspaceSplit.addSubview(schemaPane)
+        workspaceSplit.addSubview(queryColumn)
+        workspaceSplit.translatesAutoresizingMaskIntoConstraints = false
+        databasesPage.wantsLayer = true
+        databasesPage.layer?.backgroundColor = QuelytTheme.canvas.cgColor
+        databasesPage.addSubview(workspaceSplit)
+        NSLayoutConstraint.activate([
+            workspaceSplit.leadingAnchor.constraint(equalTo: databasesPage.leadingAnchor),
+            workspaceSplit.trailingAnchor.constraint(equalTo: databasesPage.trailingAnchor),
+            workspaceSplit.topAnchor.constraint(equalTo: databasesPage.topAnchor),
+            workspaceSplit.bottomAnchor.constraint(equalTo: databasesPage.bottomAnchor)
+        ])
+        let pageHost = NSView()
+        pageHost.translatesAutoresizingMaskIntoConstraints = false
+        pageHost.wantsLayer = true
+        pageHost.layer?.backgroundColor = QuelytTheme.canvas.cgColor
+        for page in [databasesPage, historyPage.view, connectionsPage, settingsPage, aiPage] {
+            page.translatesAutoresizingMaskIntoConstraints = false
+            pageHost.addSubview(page)
+            NSLayoutConstraint.activate([
+                page.leadingAnchor.constraint(equalTo: pageHost.leadingAnchor),
+                page.trailingAnchor.constraint(equalTo: pageHost.trailingAnchor),
+                page.topAnchor.constraint(equalTo: pageHost.topAnchor),
+                page.bottomAnchor.constraint(equalTo: pageHost.bottomAnchor)
+            ])
+        }
+        contentRoot.addSubview(insetHeader)
+        contentRoot.addSubview(pageHost)
+        NSLayoutConstraint.activate([
+            insetHeader.topAnchor.constraint(equalTo: contentRoot.topAnchor),
+            insetHeader.leadingAnchor.constraint(equalTo: contentRoot.leadingAnchor),
+            insetHeader.trailingAnchor.constraint(equalTo: contentRoot.trailingAnchor),
+            pageHost.topAnchor.constraint(equalTo: insetHeader.bottomAnchor),
+            pageHost.leadingAnchor.constraint(equalTo: contentRoot.leadingAnchor),
+            pageHost.trailingAnchor.constraint(equalTo: contentRoot.trailingAnchor),
+            pageHost.bottomAnchor.constraint(equalTo: contentRoot.bottomAnchor)
         ])
         let contentController = NSViewController(); contentController.view = contentRoot
         split = NSSplitViewController()
         let sidebarItem = NSSplitViewItem(sidebarWithViewController: sidebar)
-        sidebarItem.minimumThickness = 220
-        sidebarItem.maximumThickness = 340
+        sidebarItem.minimumThickness = QuelytTheme.sidebarCompact
+        sidebarItem.maximumThickness = 260
         sidebarItem.canCollapse = true
         let contentItem = NSSplitViewItem(viewController: contentController)
         contentItem.minimumThickness = 520
@@ -246,7 +353,10 @@ final class QuelytApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, N
         toolbar.allowsUserCustomization = false
         window.toolbar = toolbar
         window.center(); window.makeKeyAndOrderFront(nil)
-        split.splitView.setPosition(268, ofDividerAt: 0)
+        split.splitView.setPosition(QuelytTheme.sidebarDefault, ofDividerAt: 0)
+        workspaceSplit.setPosition(220, ofDividerAt: 0)
+        dataSplit.setPosition(180, ofDividerAt: 0)
+        showDestination(.databases)
         setBusy(false)
         showState("Open a dataset", message: "Choose a CSV or Parquet file, or drop one onto the workspace. Your data stays on this Mac.", symbol: "tablecells", canOpen: true)
         NSApp.activate(ignoringOtherApps: true); window.makeFirstResponder(editor)
@@ -259,39 +369,55 @@ final class QuelytApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, N
         if let flag = CommandLine.arguments.firstIndex(of: "--ui-checks"), CommandLine.arguments.count > flag + 1 { runUIChecks(output: CommandLine.arguments[flag + 1]) }
     }
     func wireSidebar() {
-        sidebar.onOpen = { [weak self] in self?.openPanel() }
-        sidebar.onOpenRecent = { [weak self] path in
+        schema.onOpen = { [weak self] in self?.openPanel() }
+        schema.onOpenRecent = { [weak self] path in
             guard let self = self, self.process == nil else { return }
             self.openDataset(URL(fileURLWithPath: path))
         }
-        sidebar.onInsertColumn = { [weak self] name in
+        schema.onInsertColumn = { [weak self] name in
             guard let self = self else { return }
+            self.sidebar.selectDestination(.databases)
             self.window.makeFirstResponder(self.editor)
             self.editor.insertIdentifier(name)
         }
-        sidebar.onSelectTrace = { [weak self] trace in
+        historyPage.onSelectTrace = { [weak self] trace in
             guard let self = self, self.process == nil, let sql = trace["sql"] as? String else { return }
             self.editor.string = sql
             if let path = trace["path"] as? String, self.selectedURL?.path != path, ["csv", "parquet"].contains(URL(fileURLWithPath: path).pathExtension.lowercased()) {
                 self.status.stringValue = "History SQL loaded. Open that dataset to run it."
             }
         }
-        sidebar.onRerunTrace = { [weak self] trace in self?.runHistory(trace) }
+        historyPage.onRerunTrace = { [weak self] trace in self?.runHistory(trace) }
         sidebar.onNavigate = { [weak self] destination in
-            guard let self = self, self.process == nil else { return }
-            switch destination {
-            case .connections:
-                self.status.stringValue = "Remote connections are not available. Open a local CSV or Parquet file from Databases."
-            case .ai:
-                self.status.stringValue = "Talk to Data stays out of the app until evaluation gates pass. No model calls are made."
-            case .settings:
-                self.status.stringValue = "Local workspace. No account. No network connection."
-            case .history:
-                self.status.stringValue = "Click a history row to load SQL. Double-click to rerun."
-            case .databases:
-                break
-            }
+            self?.showDestination(destination)
         }
+    }
+    func showDestination(_ destination: SidebarDestination) {
+        databasesPage.isHidden = destination != .databases
+        historyPage.view.isHidden = destination != .history
+        connectionsPage.isHidden = destination != .connections
+        settingsPage.isHidden = destination != .settings
+        aiPage.isHidden = destination != .ai
+        updateBreadcrumbs()
+        switch destination {
+        case .connections:
+            status.stringValue = "Remote connections are not available. Open a local CSV or Parquet file from Databases."
+        case .ai:
+            status.stringValue = "Talk to Data stays out of the app until evaluation gates pass. No model calls are made."
+        case .settings:
+            status.stringValue = "Local workspace. No account. No network connection."
+        case .history:
+            status.stringValue = "Arrow keys load SQL. Return reruns against its source file."
+        case .databases:
+            break
+        }
+    }
+    func updateBreadcrumbs() {
+        var crumbs = ["Quelyt", sidebar.selectedDestination.title]
+        if sidebar.selectedDestination == .databases, let name = selectedURL?.lastPathComponent {
+            crumbs.append(name)
+        }
+        insetHeader.setCrumbs(crumbs)
     }
     func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
         [.toggleSidebar, .openDataset, .runQuery, .cancelQuery, .profileDataset, .copyRows, .flexibleSpace, .localBadge]
@@ -310,8 +436,8 @@ final class QuelytApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, N
             button.bezelStyle = .rounded
             button.image = NSImage(systemSymbolName: "play.fill", accessibilityDescription: "Run query")
             button.imagePosition = .imageLeading
-            button.bezelColor = QuelytTheme.brand
-            button.contentTintColor = .white
+            button.bezelColor = QuelytTheme.primary
+            button.contentTintColor = QuelytTheme.primaryInk
             runItem = NSToolbarItem(itemIdentifier: .runQuery)
             runItem.label = "Run"
             runItem.paletteLabel = "Run"
@@ -330,7 +456,7 @@ final class QuelytApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, N
             return copyItem
         case .localBadge:
             let item = NSToolbarItem(itemIdentifier: .localBadge)
-            let badge = label("Local · Read only", size: 11, weight: .medium, color: QuelytTheme.success)
+            let badge = label("Local · Read only", size: 11, weight: .medium, color: QuelytTheme.inkMuted)
             item.view = badge
             item.label = "Local"
             return item
@@ -386,6 +512,7 @@ final class QuelytApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, N
         for (title, action, key) in [("Save Query…", #selector(saveQuery), "s"), ("Open Query…", #selector(loadQuery), ""), ("Export Returned Results…", #selector(exportResults), "")] { let item = file.addItem(withTitle: title, action: action, keyEquivalent: key); item.target = self }
         let queryItem = NSMenuItem(); main.addItem(queryItem); let queryMenu = NSMenu(title: "Workspace"); queryItem.submenu = queryMenu
         let run = queryMenu.addItem(withTitle: "Run Query", action: #selector(runQuery), keyEquivalent: "\r"); run.target = self; run.keyEquivalentModifierMask = .command
+        let paletteItem = queryMenu.addItem(withTitle: "Command Palette", action: #selector(showPalette), keyEquivalent: "k"); paletteItem.target = self
         for (title, action, key) in [("Focus SQL Editor", #selector(focusEditor), "1"), ("Focus Results", #selector(focusResults), "2"), ("Focus History", #selector(focusHistory), "3"), ("Complete SQL", #selector(completeSQL), ""), ("Run Selected History Query", #selector(rerunHistory), "")] { let item = queryMenu.addItem(withTitle: title, action: action, keyEquivalent: key); item.target = self }
         let viewItem = NSMenuItem(); main.addItem(viewItem); let view = NSMenu(title: "View"); viewItem.submenu = view
         let sidebarItem = view.addItem(withTitle: "Hide Sidebar", action: #selector(toggleSidebar(_:)), keyEquivalent: "b")
@@ -407,8 +534,10 @@ final class QuelytApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, N
         openingDataset = true
         selectedURL = url
         window.title = url.lastPathComponent
-        sidebar.resetColumns()
-        sidebar.setDataset(url: url, rows: nil, columns: nil)
+        sidebar.selectDestination(.databases)
+        schema.resetColumns()
+        schema.setDataset(url: url, rows: nil, columns: nil)
+        updateBreadcrumbs()
         editor.string = sql ?? "SELECT *\nFROM dataset\nLIMIT 200;"
         runQuery()
     }
@@ -436,12 +565,52 @@ final class QuelytApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, N
         guard let url = selectedURL else { return }
         startWorker(["path": url.path, "sql": editor.string, "timeout_seconds": 15])
     }
+    func bundledPython() -> URL? {
+        let bin = Bundle.main.bundleURL.appendingPathComponent("Contents/Resources/runtime/bin")
+        for name in ["python3", "python"] {
+            let url = bin.appendingPathComponent(name)
+            if FileManager.default.isExecutableFile(atPath: url.path) { return url }
+        }
+        return nil
+    }
+    func bundledScript(_ name: String) -> URL? {
+        let url = Bundle.main.bundleURL.appendingPathComponent("Contents/Resources/python/\(name).py")
+        return FileManager.default.isReadableFile(atPath: url.path) ? url : nil
+    }
+    func makePythonProcess(_ script: String, extra: [String] = []) -> Process? {
+        guard let python = bundledPython(), let scriptURL = bundledScript(script) else { return nil }
+        let p = Process()
+        p.executableURL = python
+        p.arguments = ["-I", "-B", scriptURL.path] + extra
+        p.environment = ["PATH": "/usr/bin:/bin", "PYTHONIOENCODING": "utf-8", "PYTHONDONTWRITEBYTECODE": "1"]
+        return p
+    }
+    func rebuildResultColumns() {
+        for col in table.tableColumns { table.removeTableColumn(col) }
+        for (index, column) in columns.enumerated() {
+            let col = NSTableColumn(identifier: NSUserInterfaceItemIdentifier(String(index)))
+            let name = column["name"] as? String ?? "Column"
+            let type = column["type"] as? String ?? ""
+            col.title = name
+            col.width = 160
+            col.sortDescriptorPrototype = NSSortDescriptor(key: String(index), ascending: true)
+            let cell = TypedHeaderCell()
+            cell.stringValue = name
+            cell.typeName = type
+            cell.symbolName = ColumnTypeGlyph.symbol(for: type)
+            col.headerCell = cell
+            table.addTableColumn(col)
+        }
+    }
     func startWorker(_ body: [String: Any]) {
         guard process == nil, selectedURL != nil else { return }
         guard let input = try? JSONSerialization.data(withJSONObject: body) else { return }
-        let p = Process(); p.executableURL = URL(fileURLWithPath: workspace + "/.venv/bin/python")
-        p.arguments = ["-I", "-B", workspace + "/src/quelyt/worker.py"]
-        p.environment = ["PATH": "/usr/bin:/bin", "PYTHONIOENCODING": "utf-8", "PYTHONDONTWRITEBYTECODE": "1"]
+        guard let p = makePythonProcess("worker") else {
+            status.stringValue = "Cannot start worker: bundled Python runtime is missing. Rebuild with apps/macos/build.sh."
+            setBusy(false)
+            showState("Worker unavailable", message: "The local query worker could not start. See the status message below.", symbol: "exclamationmark.circle")
+            return
+        }
         let stdin = Pipe(); let stdout = Pipe(); let stderr = Pipe(); p.standardInput = stdin; p.standardOutput = stdout; p.standardError = stderr
         let id = UUID(); activeID = id; cancelled = false; timedOut = false
         lastResponse = nil; lastResponseData = nil; allRows = []; resultFilter.stringValue = ""; resultFilter.isEnabled = false; exportButton.isEnabled = false; chartToggle.isEnabled = false
@@ -451,7 +620,7 @@ final class QuelytApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, N
         openingDataset = false
         workerStarted = Date.timeIntervalSinceReferenceDate
         status.stringValue = "Reading selected data and running query…"; setBusy(true)
-        do { try p.run() } catch { status.stringValue = "Cannot start worker: \(error.localizedDescription). Run the setup commands in README."; setBusy(false); showState("Worker unavailable", message: "The local query worker could not start. See the status message below.", symbol: "exclamationmark.circle"); return }
+        do { try p.run() } catch { status.stringValue = "Cannot start worker: \(error.localizedDescription). Rebuild with apps/macos/build.sh."; setBusy(false); showState("Worker unavailable", message: "The local query worker could not start. See the status message below.", symbol: "exclamationmark.circle"); return }
         process = p
         stdin.fileHandleForWriting.write(input); try? stdin.fileHandleForWriting.close()
         DispatchQueue.main.asyncAfter(deadline: .now() + 30) { [weak self] in
@@ -478,20 +647,20 @@ final class QuelytApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, N
                 if response["action"] as? String == "profile", let sql = response["sql"] as? String { self.editor.string = sql }
                 self.lastResponse = response; self.lastResponseData = data; self.exportButton.isEnabled = true; self.resultFilter.isEnabled = true
                 self.rows = response["rows"] as? [[Any]] ?? []; self.columns = response["columns"] as? [[String: Any]] ?? []
-                for col in self.table.tableColumns { self.table.removeTableColumn(col) }
-                for (index, column) in self.columns.enumerated() { let col = NSTableColumn(identifier: NSUserInterfaceItemIdentifier(String(index))); col.title = column["name"] as? String ?? "Column"; col.width = 160; col.sortDescriptorPrototype = NSSortDescriptor(key: String(index), ascending: true); self.table.addTableColumn(col) }
+                self.rebuildResultColumns()
                 self.allRows = self.rows; self.table.sortDescriptors = []
                 self.stateSpinner.stopAnimation(nil); self.statePanel.isHidden = true; self.resultScroll.isHidden = false
                 self.table.reloadData()
                 let fields = response["schema"] as? [[String: Any]] ?? []
                 if let profile = response["profile"] as? [[String: Any]], !profile.isEmpty {
-                    self.sidebar.applyProfile(profile)
+                    self.schema.applyProfile(profile)
                 } else {
-                    self.sidebar.applySchema(fields)
+                    self.schema.applySchema(fields)
                 }
                 self.editor.schemaColumns = fields.compactMap { $0["name"] as? String }; self.editor.highlight()
                 let datasetCount = (response["dataset_rows"] as? NSNumber)?.intValue ?? 0
-                self.sidebar.setDataset(url: self.selectedURL, rows: datasetCount, columns: fields.count)
+                self.schema.setDataset(url: self.selectedURL, rows: datasetCount, columns: fields.count)
+                self.updateBreadcrumbs()
                 self.window.title = self.selectedURL?.lastPathComponent ?? "Quelyt"
                 self.updateChart(response)
                 self.resultSummary.stringValue = self.rows.count == 1 ? "1 row" : "\(self.rows.count.formatted()) rows"
@@ -563,10 +732,7 @@ final class QuelytApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, N
             rows.append([String(i), region, String(i % 100)])
         }
         for col in table.tableColumns { table.removeTableColumn(col) }
-        for (index, column) in columns.enumerated() {
-            let col = NSTableColumn(identifier: NSUserInterfaceItemIdentifier(String(index)))
-            col.title = column["name"] as? String ?? "Column"; col.width = 160; table.addTableColumn(col)
-        }
+        rebuildResultColumns()
         table.reloadData(); window.displayIfNeeded()
     }
     func finishCompare() {
@@ -690,9 +856,7 @@ final class QuelytApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, N
         copyItem?.isEnabled = process == nil && !table.selectedRowIndexes.isEmpty
     }
     func historyJSON(_ arguments: [String], input: Data? = nil) -> [String: Any]? {
-        let p = Process(); p.executableURL = URL(fileURLWithPath: workspace + "/.venv/bin/python")
-        p.arguments = ["-I", "-B", workspace + "/src/quelyt/history.py"] + arguments
-        p.environment = ["PATH": "/usr/bin:/bin", "PYTHONIOENCODING": "utf-8", "PYTHONDONTWRITEBYTECODE": "1"]
+        guard let p = makePythonProcess("history", extra: arguments) else { return nil }
         let stdin = Pipe(); let stdout = Pipe(); let stderr = Pipe()
         p.standardInput = stdin; p.standardOutput = stdout; p.standardError = stderr
         do { try p.run() } catch { return nil }
@@ -704,11 +868,11 @@ final class QuelytApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, N
     }
     func reloadHistory() {
         let listed = historyJSON(["list"])
-        sidebar.setTraces(listed?["traces"] as? [[String: Any]] ?? [])
+        historyPage.setTraces(listed?["traces"] as? [[String: Any]] ?? [])
         rebuildRecentMenu(listed?["sources"] as? [[String: Any]] ?? [])
     }
     func rebuildRecentMenu(_ sources: [[String: Any]]) {
-        sidebar.setRecents(sources)
+        schema.setRecents(sources)
         recentMenu.removeAllItems()
         if sources.isEmpty {
             let empty = recentMenu.addItem(withTitle: "No recent datasets", action: nil, keyEquivalent: "")
@@ -723,7 +887,7 @@ final class QuelytApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, N
     }
     func lastReadableSource() -> URL? {
         let listed = historyJSON(["list"])
-        sidebar.setTraces(listed?["traces"] as? [[String: Any]] ?? [])
+        historyPage.setTraces(listed?["traces"] as? [[String: Any]] ?? [])
         rebuildRecentMenu(listed?["sources"] as? [[String: Any]] ?? [])
         guard let path = (listed?["sources"] as? [[String: Any]])?.first?["path"] as? String else { return nil }
         return FileManager.default.isReadableFile(atPath: path) ? URL(fileURLWithPath: path) : nil
@@ -755,9 +919,10 @@ final class QuelytApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, N
         guard process == nil, let path = sender.representedObject as? String else { return }
         openDataset(URL(fileURLWithPath: path))
     }
-    @objc func rerunHistory() { sidebar.rerunSelectedTrace() }
+    @objc func rerunHistory() { historyPage.rerunSelectedTrace() }
     func runHistory(_ trace: [String: Any]) {
         guard process == nil, let sql = trace["sql"] as? String else { return }
+        sidebar.selectDestination(.databases)
         editor.string = sql
         guard let path = trace["path"] as? String, FileManager.default.isReadableFile(atPath: path) else {
             status.stringValue = "This query’s dataset is unavailable. Open the source file before rerunning."; return
@@ -766,7 +931,7 @@ final class QuelytApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, N
         runQuery()
     }
     @objc func deleteSelectedTrace() {
-        guard !skipHistory(), let id = sidebar.selectedTrace()?["id"] else { return }
+        guard !skipHistory(), let id = historyPage.selectedTrace()?["id"] else { return }
         DispatchQueue.global(qos: .utility).async {
             _ = self.historyJSON(["delete", String(describing: id)])
             DispatchQueue.main.async { self.reloadHistory() }
@@ -812,37 +977,58 @@ final class QuelytApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, N
         check("chart_accessible_values", chartView.accessibilityValue() as? String == "East: -10.0; West: 20.0")
         chartToggle.state = .off; toggleChart(); check("chart_toggle", chartView.isHidden)
         editor.string = "SELECT "; editor.setSelectedRange(NSRange(location: 7, length: 0))
-        sidebar.applySchema([["name": "region name", "type": "VARCHAR"], ["name": "amount", "type": "DOUBLE"], ["name": "sale_date", "type": "DATE"]])
-        sidebar.insertColumn(at: 0)
+        schema.applySchema([["name": "region name", "type": "VARCHAR"], ["name": "amount", "type": "DOUBLE"], ["name": "sale_date", "type": "DATE"]])
+        schema.insertColumn(at: 0)
         check("column_insert_quotes_names", editor.string == "SELECT \"region name\"")
-        sidebar.applyProfile([["name": "amount", "type": "DOUBLE", "null_pct": 0, "distinct_count": 3, "min": 1, "max": 9]])
-        sidebar.applySchema([["name": "amount", "type": "DOUBLE"], ["name": "region", "type": "VARCHAR"]])
-        let amountMeta = sidebar.visibleColumnRows().first { $0.name == "amount" }?.meta ?? ""
+        schema.applyProfile([["name": "amount", "type": "DOUBLE", "null_pct": 0, "distinct_count": 3, "min": 1, "max": 9]])
+        schema.applySchema([["name": "amount", "type": "DOUBLE"], ["name": "region", "type": "VARCHAR"]])
+        let amountMeta = schema.visibleColumnRows().first { $0.name == "amount" }?.meta ?? ""
         check("profile_survives_later_query", amountMeta.contains("distinct 3") && amountMeta.contains("null 0"))
-        sidebar.applySchema([["name": "revenue", "type": "DOUBLE"], ["name": "region", "type": "VARCHAR"]])
-        sidebar.columnFilterString = "rev"
-        check("column_filter", sidebar.visibleColumnRows().map(\.name) == ["revenue"])
-        sidebar.columnFilterString = ""
+        schema.applySchema([["name": "revenue", "type": "DOUBLE"], ["name": "region", "type": "VARCHAR"]])
+        schema.columnFilterString = "rev"
+        check("column_filter", schema.visibleColumnRows().map(\.name) == ["revenue"])
+        schema.columnFilterString = ""
         let extras = (1...8).map { ["name": "file\($0).csv", "path": "/tmp/file\($0).csv"] }
-        sidebar.setRecents(extras)
-        check("recents_capped", sidebar.recentNames() == ["file1.csv", "file2.csv", "file3.csv", "file4.csv", "file5.csv", "file6.csv", "file7.csv"])
-        check("nav_default_databases", sidebar.selectedDestination == .databases)
+        schema.setRecents(extras)
+        check("recents_capped", schema.recentNames() == ["file1.csv", "file2.csv", "file3.csv", "file4.csv", "file5.csv", "file6.csv", "file7.csv"])
+        check("nav_default_databases", sidebar.selectedDestination == .databases && !databasesPage.isHidden)
         sidebar.selectDestination(.connections)
-        check("nav_connections_unavailable", sidebar.selectedDestination == .connections && sidebar.showsUnavailable)
+        check("nav_connections_unavailable", sidebar.selectedDestination == .connections && !connectionsPage.isHidden)
         sidebar.selectDestination(.ai)
-        check("nav_ai_unavailable", sidebar.selectedDestination == .ai && sidebar.showsUnavailable)
+        check("nav_ai_unavailable", sidebar.selectedDestination == .ai && !aiPage.isHidden)
         sidebar.selectDestination(.history)
-        check("nav_history_selected", sidebar.selectedDestination == .history && !sidebar.showsUnavailable)
+        check("nav_history_selected", sidebar.selectedDestination == .history && !historyPage.view.isHidden)
         sidebar.selectDestination(.settings)
-        check("nav_settings_local", sidebar.selectedDestination == .settings && !sidebar.showsUnavailable)
+        check("nav_settings_local", sidebar.selectedDestination == .settings && !settingsPage.isHidden)
         sidebar.selectDestination(.databases)
-        check("nav_databases_restored", sidebar.selectedDestination == .databases)
+        check("nav_databases_restored", sidebar.selectedDestination == .databases && !databasesPage.isHidden)
         let item = split.splitViewItems[0]
         let restored = item.isCollapsed
         item.isCollapsed = true
         let collapsed = item.isCollapsed
         item.isCollapsed = restored
         check("sidebar_collapse_restores", collapsed && item.isCollapsed == restored)
+        check("palette_filters_run", palette.matchingTitles("run").contains("Run Query"))
+        columns = [["name": "amount", "type": "DOUBLE"]]
+        rebuildResultColumns()
+        let headerLabel = table.tableColumns.first?.headerCell.accessibilityLabel() as? String ?? ""
+        check("header_type_accessibility", headerLabel.contains("amount") && headerLabel.contains("DOUBLE"))
+        allRows = [["East", "10"], ["West", "2"]]; rows = allRows
+        table.reloadData(); table.deselectAll(nil)
+        focusResults()
+        check("keyboard_selects_first_result", table.selectedRow == 0)
+        var reran = false
+        historyPage.onRerunTrace = { _ in reran = true }
+        sidebar.selectDestination(.history)
+        historyPage.setTraces([["sql": "SELECT 1", "ok": true, "path": "/tmp/x.csv"]])
+        historyPage.selectTrace(at: 0)
+        historyPage.performHistoryReturn()
+        check("history_return_reruns", reran)
+        check("nav_accepts_first_responder", sidebar.navAcceptsFirstResponder)
+        check("bundled_python_runtime", (bundledPython()?.path ?? "").contains("Contents/Resources/runtime"))
+        window.setContentSize(NSSize(width: 980, height: 720))
+        window.contentView?.layoutSubtreeIfNeeded()
+        check("min_window_layout", window.frame.width >= 980 && dataSplit.bounds.height > 160)
         if let data = try? JSONSerialization.data(withJSONObject: checks, options: [.prettyPrinted, .sortedKeys]) { try? data.write(to: URL(fileURLWithPath: output)) }
         NSApp.terminate(nil)
     }
@@ -880,15 +1066,45 @@ final class QuelytApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, N
             } catch { self.status.stringValue = "Open query failed: \(error.localizedDescription)" }
         }
     }
-    @objc func focusEditor() { window.makeFirstResponder(editor) }
-    @objc func focusResults() { window.makeFirstResponder(table) }
+    @objc func focusEditor() {
+        sidebar.selectDestination(.databases)
+        window.makeFirstResponder(editor)
+    }
+    @objc func focusResults() {
+        sidebar.selectDestination(.databases)
+        window.makeFirstResponder(table)
+        if table.selectedRow < 0, table.numberOfRows > 0 {
+            table.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
+        }
+    }
     @objc func focusHistory() {
         sidebar.selectDestination(.history)
-        window.makeFirstResponder(sidebar.historyTable)
+        window.makeFirstResponder(historyPage.table)
     }
+    @objc func showPalette() { palette.present(from: window, target: self) }
+    @objc func copySelectedRows() { table.copy(nil) }
+    @objc func goDatabases() { sidebar.selectDestination(.databases) }
+    @objc func goHistory() { focusHistory() }
+    @objc func goConnections() { sidebar.selectDestination(.connections) }
+    @objc func goSettings() { sidebar.selectDestination(.settings) }
+    @objc func goAI() { sidebar.selectDestination(.ai) }
     @objc func toggleSidebar(_ sender: Any?) { split.toggleSidebar(sender) }
     @objc func completeSQL() { window.makeFirstResponder(editor); editor.complete(nil) }
     @objc func toggleChart() { setChartVisible(chartToggle.state == .on && chartView.kind != "none") }
+    @objc func toggleChartPalette() {
+        chartToggle.state = chartToggle.state == .on ? .off : .on
+        toggleChart()
+    }
+    func splitView(_ splitView: NSSplitView, constrainMinCoordinate proposedMinimumPosition: CGFloat, ofSubviewAt dividerIndex: Int) -> CGFloat {
+        if splitView === dataSplit { return 120 }
+        if splitView === workspaceSplit { return 160 }
+        return proposedMinimumPosition
+    }
+    func splitView(_ splitView: NSSplitView, constrainMaxCoordinate proposedMaximumPosition: CGFloat, ofSubviewAt dividerIndex: Int) -> CGFloat {
+        if splitView === dataSplit { return splitView.bounds.height - 160 }
+        if splitView === workspaceSplit { return max(splitView.bounds.width - 360, 160) }
+        return proposedMaximumPosition
+    }
     @objc func filterResults() {
         let needle = resultFilter.stringValue
         rows = needle.isEmpty ? allRows : allRows.filter { row in row.contains { String(describing: $0).localizedCaseInsensitiveContains(needle) } }

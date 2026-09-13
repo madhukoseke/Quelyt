@@ -44,4 +44,4 @@ SOFTWARE.
 
 ## Python
 
-The developer build uses the separately installed Python 3.12 runtime. A future bundle must carry Python and included native-library notices from that exact distribution.
+The developer app bundle copies a CPython interpreter into `Contents/Resources/runtime` at build time. The exact license text from that interpreter is written into the bundled copy of this file. Nested standard-library and OpenSSL notices remain a remainder, not a complete redistribution audit.

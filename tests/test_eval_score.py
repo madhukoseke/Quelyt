@@ -15,6 +15,14 @@ import held_out
 
 
 class EvalScoreTests(unittest.TestCase):
+    def test_exact_numeric_and_multiset_regressions(self):
+        self.assertFalse(cell_equal(9007199254740992, 9007199254740993))
+        self.assertFalse(cell_equal('0.123456789012345678901', '0.123456789012345678902'))
+        self.assertFalse(cell_equal(True, 1))
+        self.assertTrue(rows_equal([['2'], ['10.00'], ['2.0']], [[2], [2], [10]]))
+        self.assertFalse(rows_equal([[2], [2]], [[2], [3]]))
+        self.assertFalse(rows_equal([[2], [10]], [[10], [2]], ordered=True))
+
     def test_suite_shape(self):
         families = {}
         worlds = set()

@@ -44,7 +44,59 @@
     "passed" : true
   },
   {
+    "case" : "nav_default_databases",
+    "passed" : true
+  },
+  {
+    "case" : "nav_connections_unavailable",
+    "passed" : true
+  },
+  {
+    "case" : "nav_ai_unavailable",
+    "passed" : true
+  },
+  {
+    "case" : "nav_history_selected",
+    "passed" : true
+  },
+  {
+    "case" : "nav_settings_local",
+    "passed" : true
+  },
+  {
+    "case" : "nav_databases_restored",
+    "passed" : true
+  },
+  {
     "case" : "sidebar_collapse_restores",
+    "passed" : true
+  },
+  {
+    "case" : "palette_filters_run",
+    "passed" : true
+  },
+  {
+    "case" : "header_type_accessibility",
+    "passed" : true
+  },
+  {
+    "case" : "keyboard_selects_first_result",
+    "passed" : true
+  },
+  {
+    "case" : "history_return_reruns",
+    "passed" : true
+  },
+  {
+    "case" : "nav_accepts_first_responder",
+    "passed" : true
+  },
+  {
+    "case" : "bundled_python_runtime",
+    "passed" : true
+  },
+  {
+    "case" : "min_window_layout",
     "passed" : true
   }
 ]

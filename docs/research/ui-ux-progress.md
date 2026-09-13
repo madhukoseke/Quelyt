@@ -114,4 +114,48 @@ Selected pill and hover fill `#1a2030` (hover at 55% alpha). No bounce. Tracking
 - Spreadsheet grid: same canvas as editor, vertical hairlines, type glyphs in headers.
 - SQL: blue keywords, green table marks in autocomplete, dark completion card.
 
-Quelyt does not copy tabs, ER diagrams, inline row editing, pending-change inspector, or remote connections. Remaining gaps vs DB Pro: no command palette, no tab strip, no type glyphs in grid headers, no Lucide icon set (SF Symbols instead), no Geist webfonts (system fonts), no inspector pane.
+Quelyt does not copy tabs, ER diagrams, inline row editing, pending-change inspector, or remote connections. Remaining gaps vs DB Pro: no tab strip, no Lucide icon set (SF Symbols instead), no Geist webfonts (system fonts), no inspector pane.
+
+## Implemented continuation — palette, typed headers, keyboard, bundled runtime
+
+Command palette (**⌘K**) filters existing workspace actions only. Result headers draw an SF Symbol and expose `"name, TYPE"` to accessibility. **⌘2** selects the first result row when none is selected; History **Return** reruns; column and recent rows accept Return; nav items accept first responder. SQL and results share a vertical split so the 980×720 minimum does not clip the filter field or empty-state copy.
+
+`apps/macos/build.sh` copies a Python venv, DuckDB, SQLGlot, `worker.py`, `history.py` and third-party notices into the app. Info.plist no longer embeds `QuelytWorkspace`. The app launches only that bundled interpreter. This is relocatable on this development Mac; it is not a signed, sandboxed, or clean-machine install. Preflight still fails Developer ID / Gatekeeper / stapler.
+
+Native UI regression checks now include palette filter, header type accessibility, first-row keyboard select, history Return, bundled python path, and minimum-window layout, plus the earlier editor/sidebar checks (25 native UI checks). 32 Python tests pass. Remaining: physical VoiceOver/drag-drop acceptance, App Sandbox/XPC, signing/notarization, clean-machine offline installation. AI and database-connection research gates remain unchanged.
+
+## Implemented continuation — Dokploy-inspired dark shell (2026-09-12)
+
+The developer app is now a destination-driven dark dashboard mapped from Dokploy’s `.dark` tokens (zinc canvas, inverted near-white primary, violet accent), not DB Pro navy. The sidebar is **nav-only** (Explore / Workspace groups, This Mac footer). Dragging it below ~88pt collapses labels into a 56pt icon rail; **⌃B** still hides it. The main inset has a breadcrumb header (`Quelyt / Databases / file.csv`) and swaps pages:
+
+- **Databases** — schema inspector (dataset, recents, searchable columns) beside carded Query/Results.
+- **History** — full inset table; Return/double-click reruns and returns to Databases.
+- **Connections / AI** — honest empty pages in the inset.
+- **Settings** — local-only facts as a card.
+
+No fake orgs, Docker, remote connections, or Talk to Data. Run is a light primary button. Command palette, typed headers and charts use the same zinc surfaces. Native `--ui-checks` (25) and 32 Python tests pass.
+
+### Design tokens — Dokploy dark (source of truth)
+
+AppKit maps Inter to SF Pro + SF Mono. OKLCH values from Dokploy `globals.css` `.dark`.
+
+| Token | Hex / value | AppKit use |
+| --- | --- | --- |
+| canvas | `#111111` (`oklch(0.145 0 0)`) | Window, inset |
+| surface / sidebar / card | `#212121` (`oklch(0.205 0 0)`) | Nav, elevated cards |
+| muted / selected | `#343434` (`oklch(0.269 0 0)`) | Nav selection, footer chip |
+| hairline / line | white @ 10% | Borders, grid |
+| input fill | white @ 15% | Search/input |
+| ink | `#fafafa` | Primary text |
+| ink-muted | `#a1a1a1` | Secondary labels |
+| faint | `#737373` | Section labels, comments, NULL |
+| primary | `#e5e5e5` on `#212121` | Run button, sidebar mark |
+| accent | `#6d5cff` | SQL keywords, selected nav icon, empty-state icon |
+| chart | `#2684e8` | Bar/line series |
+| success | `#2db88a` | SQL strings |
+| warn | `#e89a3c` | Numeric literals |
+| danger | `#f07171` | Errors |
+| radius | 10pt (selected pill 8pt) | Cards |
+| sidebar | 240pt default, 56–260pt, collapse via ⌃B | Nav rail |
+
+
