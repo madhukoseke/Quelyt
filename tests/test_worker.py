@@ -172,5 +172,39 @@ class WorkerTests(unittest.TestCase):
         self.assertEqual(r['chart']['kind'], 'line')
         self.assertEqual(r['chart']['sql'], 'SELECT day, SUM(amount) AS revenue FROM dataset GROUP BY day ORDER BY day')
 
+    def test_create_inspect_and_query_duckdb(self):
+        path = self.root / 'local.duckdb'
+        created = query({'action': 'create_database', 'path': str(path)})
+        self.assertTrue(created['ok'])
+        self.assertEqual(created['tables'], [])
+        self.assertEqual(query({'action': 'inspect_database', 'path': str(path)})['tables'], [])
+        with self.assertRaises(PolicyError):
+            query({'action': 'create_database', 'path': str(path)})
+        connection = duckdb.connect(str(path))
+        connection.execute('CREATE TABLE orders (region VARCHAR, amount INTEGER)')
+        connection.execute("INSERT INTO orders VALUES ('East', 20), ('West', 5)")
+        connection.close()
+        inspected = query({'action': 'inspect_database', 'path': str(path)})
+        self.assertEqual([table['name'] for table in inspected['tables']], ['orders'])
+        self.assertEqual(inspected['tables'][0]['columns'][0]['name'], 'region')
+        before = path.read_bytes()
+        result = query({'path': str(path), 'table': 'orders', 'sql': 'SELECT region, SUM(amount) AS revenue FROM dataset GROUP BY region ORDER BY region'})
+        self.assertEqual(result['rows'], [['East', '20'], ['West', '5']])
+        self.assertEqual(path.read_bytes(), before)
+        for sql in ['SELECT 1; SELECT 2', 'SELECT * FROM orders']:
+            with self.subTest(sql=sql):
+                with self.assertRaises(PolicyError):
+                    query({'path': str(path), 'table': 'orders', 'sql': sql})
+        with self.assertRaises(PolicyError):
+            query({'path': str(path), 'sql': 'SELECT * FROM dataset'})
+        with self.assertRaises(PolicyError):
+            query({'path': str(path), 'table': 'orders;drop', 'sql': 'SELECT * FROM dataset'})
+        with self.assertRaises(PolicyError):
+            query({'action': 'inspect_database', 'path': str(self.csv)})
+        folder = self.root / 'not-a-file.duckdb'
+        folder.mkdir()
+        with self.assertRaises(PolicyError):
+            query({'action': 'inspect_database', 'path': str(folder)})
+
 
 if __name__ == '__main__': unittest.main()

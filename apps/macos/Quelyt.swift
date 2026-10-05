@@ -110,12 +110,13 @@ final class QuelytApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, N
     let status = NSTextField(wrappingLabelWithString: "Open a dataset to run a query.")
     let sidebar = WorkspaceSidebar()
     let schema = SchemaInspector()
+    let databaseInspector = DatabaseInspector()
     let historyPage = HistoryPage()
     let insetHeader = InsetHeader()
     let connectionsPage = HonestPage(
         symbol: "link",
         title: "Connections",
-        body: "Remote database connections are not in this developer build. Open a local CSV or Parquet file from Databases. Source files stay on this Mac.",
+        body: "Remote database connections are not in this developer build. Open a CSV or Parquet file from Datasets, or a DuckDB file from Databases. Source files stay on this Mac.",
         accessibilityID: "connections-unavailable"
     )
     let settingsPage = SettingsPage()
@@ -153,6 +154,9 @@ final class QuelytApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, N
     let stateOpenButton = NSButton(title: "Open dataset…", target: nil, action: nil)
     var openingDataset = false
     var selectedURL: URL?
+    var selectedTable: String?
+    var knownDatabasePaths: [String] = []
+    var openItem: NSToolbarItem?
     var rows: [[Any]] = []
     var columns: [[String: Any]] = []
     var process: Process?
@@ -187,10 +191,11 @@ final class QuelytApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, N
         QuelytTheme.applyChrome(to: window)
         let contentRoot = DatasetDropView()
         contentRoot.wantsLayer = true; contentRoot.layer?.backgroundColor = QuelytTheme.canvas.cgColor
-        contentRoot.openFile = { [weak self] url in self?.openDataset(url) }
-        if let drop = sidebar.view as? DatasetDropView { drop.openFile = { [weak self] url in self?.openDataset(url) } }
-        schema.view.openFile = { [weak self] url in self?.openDataset(url) }
-        editor.font = .monospacedSystemFont(ofSize: 13, weight: .regular); editor.string = "-- Open a CSV or Parquet file to start.\n-- Your table will be available as dataset."
+        contentRoot.openFile = { [weak self] url in self?.openDropped(url) }
+        if let drop = sidebar.view as? DatasetDropView { drop.openFile = { [weak self] url in self?.openDropped(url) } }
+        schema.view.openFile = { [weak self] url in self?.openDropped(url) }
+        databaseInspector.view.openFile = { [weak self] url in self?.openDropped(url) }
+        editor.font = .monospacedSystemFont(ofSize: 13, weight: .regular); editor.string = "-- Connect a local database, or open a CSV / Parquet file.\n-- Your table will be available as dataset."
         editor.isRichText = false; editor.allowsUndo = true; editor.isAutomaticQuoteSubstitutionEnabled = false; editor.isAutomaticDashSubstitutionEnabled = false; editor.isAutomaticTextReplacementEnabled = false
         editor.drawsBackground = true; editor.backgroundColor = QuelytTheme.surface; editor.insertionPointColor = QuelytTheme.ink
         editor.textContainerInset = NSSize(width: 15, height: 14); editor.setAccessibilityLabel("SQL query")
@@ -288,12 +293,19 @@ final class QuelytApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, N
         schemaPane.wantsLayer = true
         schemaPane.layer?.backgroundColor = QuelytTheme.canvas.cgColor
         schema.view.translatesAutoresizingMaskIntoConstraints = false
+        databaseInspector.view.translatesAutoresizingMaskIntoConstraints = false
         schemaPane.addSubview(schema.view)
+        schemaPane.addSubview(databaseInspector.view)
+        schema.view.isHidden = true
         NSLayoutConstraint.activate([
             schema.view.leadingAnchor.constraint(equalTo: schemaPane.leadingAnchor, constant: 12),
             schema.view.trailingAnchor.constraint(equalTo: schemaPane.trailingAnchor, constant: -8),
             schema.view.topAnchor.constraint(equalTo: schemaPane.topAnchor, constant: 12),
-            schema.view.bottomAnchor.constraint(equalTo: schemaPane.bottomAnchor, constant: -12)
+            schema.view.bottomAnchor.constraint(equalTo: schemaPane.bottomAnchor, constant: -12),
+            databaseInspector.view.leadingAnchor.constraint(equalTo: schemaPane.leadingAnchor, constant: 12),
+            databaseInspector.view.trailingAnchor.constraint(equalTo: schemaPane.trailingAnchor, constant: -8),
+            databaseInspector.view.topAnchor.constraint(equalTo: schemaPane.topAnchor, constant: 12),
+            databaseInspector.view.bottomAnchor.constraint(equalTo: schemaPane.bottomAnchor, constant: -12)
         ])
         workspaceSplit = NSSplitView()
         workspaceSplit.isVertical = true
@@ -356,9 +368,10 @@ final class QuelytApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, N
         split.splitView.setPosition(QuelytTheme.sidebarDefault, ofDividerAt: 0)
         workspaceSplit.setPosition(220, ofDividerAt: 0)
         dataSplit.setPosition(180, ofDividerAt: 0)
+        loadKnownDatabases()
         showDestination(.databases)
         setBusy(false)
-        showState("Open a dataset", message: "Choose a CSV or Parquet file, or drop one onto the workspace. Your data stays on this Mac.", symbol: "tablecells", canOpen: true)
+        presentWorkspaceEmptyState()
         NSApp.activate(ignoringOtherApps: true); window.makeFirstResponder(editor)
         if CommandLine.arguments.count > 1 && !CommandLine.arguments[1].hasPrefix("--") { openDataset(URL(fileURLWithPath: CommandLine.arguments[1])) }
         if !skipHistory() {
@@ -369,14 +382,25 @@ final class QuelytApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, N
         if let flag = CommandLine.arguments.firstIndex(of: "--ui-checks"), CommandLine.arguments.count > flag + 1 { runUIChecks(output: CommandLine.arguments[flag + 1]) }
     }
     func wireSidebar() {
-        schema.onOpen = { [weak self] in self?.openPanel() }
+        schema.onOpen = { [weak self] in self?.openDatasetPanel() }
         schema.onOpenRecent = { [weak self] path in
             guard let self = self, self.process == nil else { return }
             self.openDataset(URL(fileURLWithPath: path))
         }
         schema.onInsertColumn = { [weak self] name in
             guard let self = self else { return }
-            self.sidebar.selectDestination(.databases)
+            self.window.makeFirstResponder(self.editor)
+            self.editor.insertIdentifier(name)
+        }
+        databaseInspector.onConnect = { [weak self] in self?.connectDatabase() }
+        databaseInspector.onCreate = { [weak self] in self?.createDatabase() }
+        databaseInspector.onOpenDatabase = { [weak self] path in
+            guard let self = self, self.process == nil else { return }
+            self.openDatabase(URL(fileURLWithPath: path))
+        }
+        databaseInspector.onSelectTable = { [weak self] name in self?.selectTable(name) }
+        databaseInspector.onInsertColumn = { [weak self] name in
+            guard let self = self else { return }
             self.window.makeFirstResponder(self.editor)
             self.editor.insertIdentifier(name)
         }
@@ -393,31 +417,64 @@ final class QuelytApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, N
         }
     }
     func showDestination(_ destination: SidebarDestination) {
-        databasesPage.isHidden = destination != .databases
+        let workspace = destination == .databases || destination == .datasets
+        databasesPage.isHidden = !workspace
         historyPage.view.isHidden = destination != .history
         connectionsPage.isHidden = destination != .connections
         settingsPage.isHidden = destination != .settings
         aiPage.isHidden = destination != .ai
+        if workspace {
+            schema.view.isHidden = destination != .datasets
+            databaseInspector.view.isHidden = destination != .databases
+            if resultScroll.isHidden { presentWorkspaceEmptyState() }
+        }
+        openItem?.toolTip = destination == .databases ? "Connect a local DuckDB file" : "Open a CSV or Parquet file"
         updateBreadcrumbs()
         switch destination {
         case .connections:
-            status.stringValue = "Remote connections are not available. Open a local CSV or Parquet file from Databases."
+            status.stringValue = "Remote connections are not available. Open a local file from Datasets, or a DuckDB file from Databases."
         case .ai:
             status.stringValue = "Talk to Data stays out of the app until evaluation gates pass. No model calls are made."
         case .settings:
             status.stringValue = "Local workspace. No account. No network connection."
         case .history:
             status.stringValue = "Arrow keys load SQL. Return reruns against its source file."
-        case .databases:
+        case .databases, .datasets:
             break
+        }
+    }
+    func presentWorkspaceEmptyState() {
+        if sidebar.selectedDestination == .databases {
+            if isDatabase(selectedURL) {
+                let empty = databaseInspector.tableNames().isEmpty
+                showState(empty ? "No tables yet" : "Choose a table", message: empty ? "This database has no tables to query. The file stays on this Mac." : "Select a table to query it as dataset. The database file is not modified.", symbol: "tablecells")
+            } else {
+                showState("Connect a local database", message: "Create a DuckDB file or connect to one on this Mac. Queries stay read-only.", symbol: "cylinder.split.1x2", canOpen: true)
+                stateOpenButton.title = "Connect…"
+            }
+        } else {
+            showState("Open a dataset", message: "Choose a CSV or Parquet file, or drop one onto the workspace. Your data stays on this Mac.", symbol: "tablecells", canOpen: true)
+            stateOpenButton.title = "Open dataset…"
         }
     }
     func updateBreadcrumbs() {
         var crumbs = ["Quelyt", sidebar.selectedDestination.title]
-        if sidebar.selectedDestination == .databases, let name = selectedURL?.lastPathComponent {
-            crumbs.append(name)
+        if let url = selectedURL {
+            let ext = url.pathExtension.lowercased()
+            if sidebar.selectedDestination == .datasets && (ext == "csv" || ext == "parquet") {
+                crumbs.append(url.lastPathComponent)
+            }
+            if sidebar.selectedDestination == .databases && ext == "duckdb" {
+                crumbs.append(url.lastPathComponent)
+            }
         }
         insetHeader.setCrumbs(crumbs)
+    }
+    func isDatabase(_ url: URL?) -> Bool {
+        url?.pathExtension.lowercased() == "duckdb"
+    }
+    func isDatasetFile(_ url: URL) -> Bool {
+        ["csv", "parquet"].contains(url.pathExtension.lowercased())
     }
     func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
         [.toggleSidebar, .openDataset, .runQuery, .cancelQuery, .profileDataset, .copyRows, .flexibleSpace, .localBadge]
@@ -430,7 +487,8 @@ final class QuelytApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, N
         case .toggleSidebar:
             return NSToolbarItem(itemIdentifier: .toggleSidebar)
         case .openDataset:
-            return toolbarItem(.openDataset, title: "Open", symbol: "folder", action: #selector(openPanel), toolTip: "Open a CSV or Parquet file")
+            openItem = toolbarItem(.openDataset, title: "Open", symbol: "folder", action: #selector(openPanel), toolTip: "Open a CSV or Parquet file")
+            return openItem
         case .runQuery:
             let button = NSButton(title: "Run", target: self, action: #selector(runQuery))
             button.bezelStyle = .rounded
@@ -502,7 +560,9 @@ final class QuelytApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, N
         let main = NSMenu(); let appItem = NSMenuItem(); main.addItem(appItem)
         let appMenu = NSMenu(); appMenu.addItem(withTitle: "Quit Quelyt", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"); appItem.submenu = appMenu
         let fileItem = NSMenuItem(); main.addItem(fileItem); let file = NSMenu(title: "File"); fileItem.submenu = file
-        let open = file.addItem(withTitle: "Open dataset…", action: #selector(openPanel), keyEquivalent: "o"); open.target = self
+        let open = file.addItem(withTitle: "Open dataset…", action: #selector(openDatasetPanel), keyEquivalent: "o"); open.target = self
+        let connect = file.addItem(withTitle: "Connect Database…", action: #selector(connectDatabase), keyEquivalent: ""); connect.target = self
+        let create = file.addItem(withTitle: "Create Database…", action: #selector(createDatabase), keyEquivalent: ""); create.target = self
         let recentItem = file.addItem(withTitle: "Open Recent", action: nil, keyEquivalent: "")
         recentMenu = NSMenu(title: "Open Recent"); recentItem.submenu = recentMenu
         let clear = file.addItem(withTitle: "Clear History…", action: #selector(clearHistory), keyEquivalent: ""); clear.target = self
@@ -522,24 +582,129 @@ final class QuelytApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, N
 
     @objc func openPanel() {
         guard process == nil else { return }
+        if sidebar.selectedDestination == .databases { connectDatabase(); return }
+        openDatasetPanel()
+    }
+    @objc func openDatasetPanel() {
+        guard process == nil else { return }
         let panel = NSOpenPanel(); panel.canChooseDirectories = false; panel.allowsMultipleSelection = false
         panel.allowedContentTypes = [.commaSeparatedText, UTType(filenameExtension: "parquet") ?? .data]
         panel.beginSheetModal(for: window) { [weak self] result in
             if result == .OK, let url = panel.url { self?.openDataset(url) }
         }
     }
+    func openDropped(_ url: URL) {
+        if url.pathExtension.lowercased() == "duckdb" { openDatabase(url) }
+        else { openDataset(url) }
+    }
     func openDataset(_ url: URL, sql: String? = nil) {
         guard process == nil else { return }
-        guard ["csv", "parquet"].contains(url.pathExtension.lowercased()) else { status.stringValue = "Choose one CSV or Parquet file."; return }
+        guard isDatasetFile(url) else { status.stringValue = "Choose one CSV or Parquet file."; return }
         openingDataset = true
         selectedURL = url
+        selectedTable = nil
         window.title = url.lastPathComponent
-        sidebar.selectDestination(.databases)
+        sidebar.selectDestination(.datasets)
+        databaseInspector.setConnection(url: nil, tables: [])
         schema.resetColumns()
         schema.setDataset(url: url, rows: nil, columns: nil)
         updateBreadcrumbs()
         editor.string = sql ?? "SELECT *\nFROM dataset\nLIMIT 200;"
         runQuery()
+    }
+    @objc func connectDatabase() {
+        guard process == nil else { return }
+        sidebar.selectDestination(.databases)
+        let panel = NSOpenPanel(); panel.canChooseDirectories = false; panel.allowsMultipleSelection = false
+        panel.allowedContentTypes = [UTType(filenameExtension: "duckdb") ?? .data]
+        panel.beginSheetModal(for: window) { [weak self] result in
+            if result == .OK, let url = panel.url { self?.openDatabase(url) }
+        }
+    }
+    @objc func createDatabase() {
+        guard process == nil else { return }
+        sidebar.selectDestination(.databases)
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [UTType(filenameExtension: "duckdb") ?? .data]
+        panel.nameFieldStringValue = "database.duckdb"
+        panel.canCreateDirectories = true
+        panel.beginSheetModal(for: window) { [weak self] result in
+            guard result == .OK, let url = panel.url else { return }
+            let path = url.pathExtension.lowercased() == "duckdb" ? url : url.appendingPathExtension("duckdb")
+            self?.runControl(["action": "create_database", "path": path.path]) { response in
+                guard let self = self else { return }
+                guard response?["ok"] as? Bool == true else {
+                    self.status.stringValue = response?["error"] as? String ?? "Could not create that database."
+                    return
+                }
+                self.openDatabase(path)
+            }
+        }
+    }
+    func openDatabase(_ url: URL, sql: String? = nil) {
+        guard process == nil else { return }
+        guard isDatabase(url) else { status.stringValue = "Choose a local DuckDB file."; return }
+        selectedURL = url
+        selectedTable = nil
+        rememberDatabase(url)
+        sidebar.selectDestination(.databases)
+        schema.resetColumns()
+        schema.setDataset(url: nil, rows: nil, columns: nil)
+        window.title = url.lastPathComponent
+        if sql == nil { editor.string = "SELECT *\nFROM dataset\nLIMIT 200;" }
+        updateBreadcrumbs()
+        showState("Reading tables…", message: "Looking at this database on this Mac.", symbol: "", loading: true)
+        runControl(["action": "inspect_database", "path": url.path]) { [weak self] response in
+            guard let self = self else { return }
+            guard response?["ok"] as? Bool == true else {
+                let message = response?["error"] as? String ?? "Could not read that database."
+                self.status.stringValue = message
+                self.showState("Could not open database", message: message, symbol: "exclamationmark.circle")
+                return
+            }
+            let tables = response?["tables"] as? [[String: Any]] ?? []
+            self.databaseInspector.setConnection(url: url, tables: tables)
+            if let sql = sql { self.editor.string = sql }
+            if tables.isEmpty {
+                self.showState("No tables yet", message: "This database has no tables to query. The file stays on this Mac.", symbol: "tablecells")
+                self.status.stringValue = "No tables yet."
+            } else if sql != nil {
+                self.showState("Choose a table", message: "History SQL is in the editor. Select a table to run it as dataset.", symbol: "tablecells")
+                self.status.stringValue = "History SQL loaded. Choose a table to run it."
+            } else {
+                self.showState("Choose a table", message: "Select a table to query it as dataset. The database file is not modified.", symbol: "tablecells")
+                self.status.stringValue = "Choose a table."
+            }
+        }
+    }
+    func selectTable(_ name: String) {
+        guard process == nil, isDatabase(selectedURL) else { return }
+        selectedTable = name
+        databaseInspector.setActiveTable(name)
+        runQuery()
+    }
+    func loadKnownDatabases() {
+        let paths = UserDefaults.standard.stringArray(forKey: "quelyt.localDatabases") ?? []
+        knownDatabasePaths = paths.filter { FileManager.default.isReadableFile(atPath: $0) }
+        databaseInspector.setDatabases(knownDatabasePaths)
+    }
+    func rememberDatabase(_ url: URL) {
+        var paths = knownDatabasePaths.filter { $0 != url.path }
+        paths.insert(url.path, at: 0)
+        knownDatabasePaths = Array(paths.prefix(12))
+        UserDefaults.standard.set(knownDatabasePaths, forKey: "quelyt.localDatabases")
+        databaseInspector.setDatabases(knownDatabasePaths)
+    }
+    func queryBody(action: String, sql: String? = nil) -> [String: Any]? {
+        guard let url = selectedURL else { return nil }
+        if isDatabase(url) && (selectedTable == nil || selectedTable?.isEmpty == true) {
+            status.stringValue = "Choose a table in the connected database."
+            return nil
+        }
+        var body: [String: Any] = ["path": url.path, "action": action, "timeout_seconds": 15]
+        if let sql = sql { body["sql"] = sql }
+        if isDatabase(url), let table = selectedTable { body["table"] = table }
+        return body
     }
     func setBusy(_ busy: Bool) {
         let canRun = !busy && selectedURL != nil
@@ -551,8 +716,8 @@ final class QuelytApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, N
         copyItem?.isEnabled = !busy && !table.selectedRowIndexes.isEmpty
     }
     @objc func profile() {
-        guard let url = selectedURL else { return }
-        startWorker(["path": url.path, "action": "profile", "timeout_seconds": 15])
+        guard let body = queryBody(action: "profile") else { return }
+        startWorker(body)
     }
     @objc func cancelQuery() {
         guard let process = process else { return }; cancelled = true; status.stringValue = "Cancelling…"; stop(process)
@@ -562,8 +727,8 @@ final class QuelytApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, N
         DispatchQueue.main.asyncAfter(deadline: .now() + 1) { if p.isRunning { kill(p.processIdentifier, SIGKILL) } }
     }
     @objc func runQuery() {
-        guard let url = selectedURL else { return }
-        startWorker(["path": url.path, "sql": editor.string, "timeout_seconds": 15])
+        guard let body = queryBody(action: "query", sql: editor.string) else { return }
+        startWorker(body)
     }
     func bundledPython() -> URL? {
         let bin = Bundle.main.bundleURL.appendingPathComponent("Contents/Resources/runtime/bin")
@@ -600,6 +765,40 @@ final class QuelytApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, N
             cell.symbolName = ColumnTypeGlyph.symbol(for: type)
             col.headerCell = cell
             table.addTableColumn(col)
+        }
+    }
+    func runControl(_ body: [String: Any], completion: @escaping ([String: Any]?) -> Void) {
+        guard process == nil else { completion(nil); return }
+        guard let input = try? JSONSerialization.data(withJSONObject: body), let p = makePythonProcess("worker") else {
+            status.stringValue = "Cannot start worker: bundled Python runtime is missing. Rebuild with apps/macos/build.sh."
+            completion(nil)
+            return
+        }
+        let stdin = Pipe(); let stdout = Pipe(); let stderr = Pipe()
+        p.standardInput = stdin; p.standardOutput = stdout; p.standardError = stderr
+        let id = UUID(); activeID = id
+        setBusy(true)
+        do { try p.run() } catch {
+            status.stringValue = "Cannot start worker: \(error.localizedDescription). Rebuild with apps/macos/build.sh."
+            setBusy(false)
+            completion(nil)
+            return
+        }
+        process = p
+        stdin.fileHandleForWriting.write(input); try? stdin.fileHandleForWriting.close()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 30) { [weak self] in
+            guard let self = self, self.activeID == id, p.isRunning else { return }
+            self.stop(p)
+        }
+        DispatchQueue.global().async { _ = stderr.fileHandleForReading.readDataToEndOfFile() }
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            let data = stdout.fileHandleForReading.readDataToEndOfFile(); p.waitUntilExit()
+            let response = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
+            DispatchQueue.main.async {
+                guard let self = self, self.activeID == id else { return }
+                self.process = nil; self.activeID = nil; self.setBusy(false)
+                completion(response)
+            }
         }
     }
     func startWorker(_ body: [String: Any]) {
@@ -652,14 +851,17 @@ final class QuelytApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, N
                 self.stateSpinner.stopAnimation(nil); self.statePanel.isHidden = true; self.resultScroll.isHidden = false
                 self.table.reloadData()
                 let fields = response["schema"] as? [[String: Any]] ?? []
-                if let profile = response["profile"] as? [[String: Any]], !profile.isEmpty {
-                    self.schema.applyProfile(profile)
-                } else {
-                    self.schema.applySchema(fields)
-                }
                 self.editor.schemaColumns = fields.compactMap { $0["name"] as? String }; self.editor.highlight()
                 let datasetCount = (response["dataset_rows"] as? NSNumber)?.intValue ?? 0
-                self.schema.setDataset(url: self.selectedURL, rows: datasetCount, columns: fields.count)
+                if self.isDatabase(self.selectedURL) {
+                    self.databaseInspector.applySchema(fields)
+                } else if let profile = response["profile"] as? [[String: Any]], !profile.isEmpty {
+                    self.schema.applyProfile(profile)
+                    self.schema.setDataset(url: self.selectedURL, rows: datasetCount, columns: fields.count)
+                } else {
+                    self.schema.applySchema(fields)
+                    self.schema.setDataset(url: self.selectedURL, rows: datasetCount, columns: fields.count)
+                }
                 self.updateBreadcrumbs()
                 self.window.title = self.selectedURL?.lastPathComponent ?? "Quelyt"
                 self.updateChart(response)
@@ -871,15 +1073,22 @@ final class QuelytApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, N
         historyPage.setTraces(listed?["traces"] as? [[String: Any]] ?? [])
         rebuildRecentMenu(listed?["sources"] as? [[String: Any]] ?? [])
     }
+    func datasetSources(_ sources: [[String: Any]]) -> [[String: Any]] {
+        sources.filter { source in
+            guard let path = source["path"] as? String else { return false }
+            return isDatasetFile(URL(fileURLWithPath: path))
+        }
+    }
     func rebuildRecentMenu(_ sources: [[String: Any]]) {
-        schema.setRecents(sources)
+        let files = datasetSources(sources)
+        schema.setRecents(files)
         recentMenu.removeAllItems()
-        if sources.isEmpty {
+        if files.isEmpty {
             let empty = recentMenu.addItem(withTitle: "No recent datasets", action: nil, keyEquivalent: "")
             empty.isEnabled = false
             return
         }
-        for source in sources {
+        for source in files {
             guard let path = source["path"] as? String else { continue }
             let item = recentMenu.addItem(withTitle: source["name"] as? String ?? path, action: #selector(openRecent(_:)), keyEquivalent: "")
             item.target = self; item.representedObject = path; item.toolTip = path
@@ -889,7 +1098,7 @@ final class QuelytApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, N
         let listed = historyJSON(["list"])
         historyPage.setTraces(listed?["traces"] as? [[String: Any]] ?? [])
         rebuildRecentMenu(listed?["sources"] as? [[String: Any]] ?? [])
-        guard let path = (listed?["sources"] as? [[String: Any]])?.first?["path"] as? String else { return nil }
+        guard let path = datasetSources(listed?["sources"] as? [[String: Any]] ?? []).first?["path"] as? String else { return nil }
         return FileManager.default.isReadableFile(atPath: path) ? URL(fileURLWithPath: path) : nil
     }
     func persistTrace(sql: String, action: String, response: [String: Any]?, cancelled: Bool, timedOut: Bool) {
@@ -922,12 +1131,22 @@ final class QuelytApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, N
     @objc func rerunHistory() { historyPage.rerunSelectedTrace() }
     func runHistory(_ trace: [String: Any]) {
         guard process == nil, let sql = trace["sql"] as? String else { return }
-        sidebar.selectDestination(.databases)
         editor.string = sql
         guard let path = trace["path"] as? String, FileManager.default.isReadableFile(atPath: path) else {
             status.stringValue = "This query’s dataset is unavailable. Open the source file before rerunning."; return
         }
-        if selectedURL?.path != path { openDataset(URL(fileURLWithPath: path), sql: sql); return }
+        let url = URL(fileURLWithPath: path)
+        if isDatabase(url) {
+            if selectedURL?.path == path, selectedTable != nil {
+                sidebar.selectDestination(.databases)
+                runQuery()
+                return
+            }
+            openDatabase(url, sql: sql)
+            return
+        }
+        if selectedURL?.path != path { openDataset(url, sql: sql); return }
+        sidebar.selectDestination(.datasets)
         runQuery()
     }
     @objc func deleteSelectedTrace() {
@@ -991,7 +1210,9 @@ final class QuelytApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, N
         let extras = (1...8).map { ["name": "file\($0).csv", "path": "/tmp/file\($0).csv"] }
         schema.setRecents(extras)
         check("recents_capped", schema.recentNames() == ["file1.csv", "file2.csv", "file3.csv", "file4.csv", "file5.csv", "file6.csv", "file7.csv"])
-        check("nav_default_databases", sidebar.selectedDestination == .databases && !databasesPage.isHidden)
+        check("nav_default_databases", sidebar.selectedDestination == .databases && !databasesPage.isHidden && schema.view.isHidden && !databaseInspector.view.isHidden && databaseInspector.showsConnectAndCreate)
+        sidebar.selectDestination(.datasets)
+        check("nav_datasets_files", sidebar.selectedDestination == .datasets && !databasesPage.isHidden && !schema.view.isHidden && databaseInspector.view.isHidden)
         sidebar.selectDestination(.connections)
         check("nav_connections_unavailable", sidebar.selectedDestination == .connections && !connectionsPage.isHidden)
         sidebar.selectDestination(.ai)
@@ -1001,7 +1222,7 @@ final class QuelytApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, N
         sidebar.selectDestination(.settings)
         check("nav_settings_local", sidebar.selectedDestination == .settings && !settingsPage.isHidden)
         sidebar.selectDestination(.databases)
-        check("nav_databases_restored", sidebar.selectedDestination == .databases && !databasesPage.isHidden)
+        check("nav_databases_restored", sidebar.selectedDestination == .databases && !databasesPage.isHidden && schema.view.isHidden && !databaseInspector.view.isHidden)
         let item = split.splitViewItems[0]
         let restored = item.isCollapsed
         item.isCollapsed = true
@@ -1066,12 +1287,19 @@ final class QuelytApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, N
             } catch { self.status.stringValue = "Open query failed: \(error.localizedDescription)" }
         }
     }
+    func focusWorkspace() {
+        if isDatabase(selectedURL) { sidebar.selectDestination(.databases) }
+        else if let url = selectedURL, isDatasetFile(url) { sidebar.selectDestination(.datasets) }
+        else if sidebar.selectedDestination != .databases && sidebar.selectedDestination != .datasets {
+            sidebar.selectDestination(.databases)
+        }
+    }
     @objc func focusEditor() {
-        sidebar.selectDestination(.databases)
+        focusWorkspace()
         window.makeFirstResponder(editor)
     }
     @objc func focusResults() {
-        sidebar.selectDestination(.databases)
+        focusWorkspace()
         window.makeFirstResponder(table)
         if table.selectedRow < 0, table.numberOfRows > 0 {
             table.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
@@ -1084,6 +1312,7 @@ final class QuelytApp: NSObject, NSApplicationDelegate, NSTableViewDataSource, N
     @objc func showPalette() { palette.present(from: window, target: self) }
     @objc func copySelectedRows() { table.copy(nil) }
     @objc func goDatabases() { sidebar.selectDestination(.databases) }
+    @objc func goDatasets() { sidebar.selectDestination(.datasets) }
     @objc func goHistory() { focusHistory() }
     @objc func goConnections() { sidebar.selectDestination(.connections) }
     @objc func goSettings() { sidebar.selectDestination(.settings) }

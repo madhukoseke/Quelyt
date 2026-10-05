@@ -268,6 +268,237 @@ final class SchemaInspector: NSObject, NSTableViewDataSource, NSTableViewDelegat
     }
 }
 
+final class DatabaseInspector: NSObject, NSTableViewDataSource, NSTableViewDelegate {
+    var onConnect: (() -> Void)?
+    var onCreate: (() -> Void)?
+    var onOpenDatabase: ((String) -> Void)?
+    var onSelectTable: ((String) -> Void)?
+    var onInsertColumn: ((String) -> Void)?
+
+    let view = DatasetDropView()
+    private let connectButton = NSButton(title: "Connect…", target: nil, action: nil)
+    private let createButton = NSButton(title: "Create…", target: nil, action: nil)
+    private let nameLabel = NSTextField(labelWithString: "No database")
+    private let metaLabel = NSTextField(wrappingLabelWithString: "Connect or create a local DuckDB file.")
+    private let emptyLabel = NSTextField(wrappingLabelWithString: "No tables yet.")
+    private let databasesTable = KeyActionTableView()
+    private let tablesTable = KeyActionTableView()
+    private let columnTable = KeyActionTableView()
+    private let databasesScroll = NSScrollView()
+    private let tablesScroll = NSScrollView()
+    private var databasesHeight: NSLayoutConstraint!
+    private var tablesHeight: NSLayoutConstraint!
+    private var databases: [[String: String]] = []
+    private var tables: [[String: Any]] = []
+    private var columns: [SidebarColumn] = []
+
+    override init() {
+        super.init()
+        view.wantsLayer = true
+        QuelytTheme.cardLayer(view, radius: QuelytTheme.radius)
+        view.appearance = NSAppearance(named: .darkAqua)
+        let stack = NSStackView()
+        stack.orientation = .vertical
+        stack.alignment = .leading
+        stack.spacing = 8
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        stack.edgeInsets = NSEdgeInsets(top: 12, left: 12, bottom: 12, right: 12)
+        nameLabel.font = .systemFont(ofSize: 13, weight: .semibold)
+        nameLabel.textColor = QuelytTheme.ink
+        nameLabel.lineBreakMode = .byTruncatingMiddle
+        metaLabel.font = .systemFont(ofSize: 11)
+        metaLabel.textColor = QuelytTheme.inkMuted
+        metaLabel.maximumNumberOfLines = 3
+        emptyLabel.font = .systemFont(ofSize: 11)
+        emptyLabel.textColor = QuelytTheme.inkMuted
+        emptyLabel.isHidden = true
+        connectButton.bezelStyle = .rounded
+        connectButton.controlSize = .small
+        connectButton.target = self
+        connectButton.action = #selector(connectClicked)
+        connectButton.setAccessibilityIdentifier("db-connect")
+        createButton.bezelStyle = .rounded
+        createButton.controlSize = .small
+        createButton.target = self
+        createButton.action = #selector(createClicked)
+        createButton.setAccessibilityIdentifier("db-create")
+        let actions = NSStackView(views: [connectButton, createButton])
+        actions.orientation = .horizontal
+        actions.spacing = 8
+        configure(databasesTable, identifier: "database", rowHeight: 22, label: "Local databases")
+        databasesTable.target = self
+        databasesTable.action = #selector(openSelectedDatabase)
+        databasesTable.onReturn = { [weak self] in self?.openSelectedDatabase() }
+        databasesScroll.documentView = databasesTable
+        databasesScroll.hasVerticalScroller = true
+        databasesScroll.drawsBackground = false
+        databasesScroll.borderType = .noBorder
+        databasesHeight = databasesScroll.heightAnchor.constraint(equalToConstant: 0)
+        configure(tablesTable, identifier: "table", rowHeight: 22, label: "Database tables")
+        tablesTable.target = self
+        tablesTable.action = #selector(selectTableClicked)
+        tablesTable.onReturn = { [weak self] in self?.selectTableClicked() }
+        tablesScroll.documentView = tablesTable
+        tablesScroll.hasVerticalScroller = true
+        tablesScroll.drawsBackground = false
+        tablesScroll.borderType = .noBorder
+        tablesHeight = tablesScroll.heightAnchor.constraint(equalToConstant: 0)
+        configure(columnTable, identifier: "db-column", rowHeight: 38, label: "Table columns")
+        columnTable.target = self
+        columnTable.action = #selector(insertSelectedColumn)
+        columnTable.onReturn = { [weak self] in self?.insertSelectedColumn() }
+        let columnScroll = NSScrollView()
+        columnScroll.documentView = columnTable
+        columnScroll.hasVerticalScroller = true
+        columnScroll.drawsBackground = false
+        columnScroll.borderType = .noBorder
+        let filesLabel = QuelytTheme.sectionLabel("Local files")
+        let tablesLabel = QuelytTheme.sectionLabel("Tables")
+        let columnsLabel = QuelytTheme.sectionLabel("Columns")
+        for item in [nameLabel, metaLabel, actions, filesLabel, databasesScroll, tablesLabel, emptyLabel, tablesScroll, columnsLabel, columnScroll] {
+            stack.addArrangedSubview(item)
+        }
+        columnScroll.setContentHuggingPriority(.defaultLow, for: .vertical)
+        view.addSubview(stack)
+        NSLayoutConstraint.activate([
+            stack.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            stack.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            stack.topAnchor.constraint(equalTo: view.topAnchor),
+            stack.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+            databasesHeight,
+            tablesHeight,
+            databasesScroll.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -24),
+            tablesScroll.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -24),
+            columnScroll.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -24),
+            columnScroll.heightAnchor.constraint(greaterThanOrEqualToConstant: 80),
+            nameLabel.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -24),
+            metaLabel.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -24),
+            emptyLabel.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -24)
+        ])
+        reloadLists()
+    }
+
+    var showsConnectAndCreate: Bool {
+        connectButton.accessibilityIdentifier() == "db-connect" && createButton.accessibilityIdentifier() == "db-create"
+    }
+
+    func setDatabases(_ paths: [String]) {
+        databases = paths.map { ["path": $0, "name": URL(fileURLWithPath: $0).lastPathComponent] }
+        reloadLists()
+    }
+
+    func setConnection(url: URL?, tables incoming: [[String: Any]]) {
+        tables = incoming
+        columns = []
+        if let url = url {
+            nameLabel.stringValue = url.lastPathComponent
+            metaLabel.stringValue = incoming.isEmpty ? "DuckDB · no tables yet" : "DuckDB · \(incoming.count) tables · read only"
+        } else {
+            nameLabel.stringValue = "No database"
+            metaLabel.stringValue = "Connect or create a local DuckDB file."
+        }
+        emptyLabel.isHidden = url == nil || !incoming.isEmpty
+        reloadLists()
+    }
+
+    func setActiveTable(_ name: String) {
+        metaLabel.stringValue = "DuckDB · \(name) · read only"
+    }
+
+    func applySchema(_ fields: [[String: Any]]) {
+        columns = fields.compactMap { field in
+            guard let name = field["name"] as? String else { return nil }
+            return SidebarColumn(name: name, type: field["type"] as? String ?? "")
+        }
+        columnTable.reloadData()
+    }
+
+    func tableNames() -> [String] {
+        tables.compactMap { $0["name"] as? String }
+    }
+
+    @objc func connectClicked() { onConnect?() }
+    @objc func createClicked() { onCreate?() }
+    @objc func openSelectedDatabase() {
+        let row = databasesTable.selectedRow
+        guard row >= 0, row < databases.count else { return }
+        onOpenDatabase?(databases[row]["path"] ?? "")
+    }
+    @objc func selectTableClicked() {
+        let row = tablesTable.selectedRow
+        guard row >= 0, row < tables.count, let name = tables[row]["name"] as? String else { return }
+        onSelectTable?(name)
+    }
+    @objc func insertSelectedColumn() {
+        let row = columnTable.selectedRow
+        guard row >= 0, row < columns.count else { return }
+        onInsertColumn?(columns[row].name)
+    }
+
+    func numberOfRows(in tableView: NSTableView) -> Int {
+        if tableView === databasesTable { return databases.count }
+        if tableView === tablesTable { return tables.count }
+        return columns.count
+    }
+
+    func tableView(_ tableView: NSTableView, viewFor column: NSTableColumn?, row: Int) -> NSView? {
+        if tableView === databasesTable {
+            guard row < databases.count else { return nil }
+            let field = NSTextField(labelWithString: databases[row]["name"] ?? "")
+            field.font = .systemFont(ofSize: 12)
+            field.textColor = QuelytTheme.ink
+            field.lineBreakMode = .byTruncatingMiddle
+            field.toolTip = databases[row]["path"]
+            return field
+        }
+        if tableView === tablesTable {
+            guard row < tables.count else { return nil }
+            let field = NSTextField(labelWithString: tables[row]["name"] as? String ?? "")
+            field.font = .systemFont(ofSize: 12, weight: .medium)
+            field.textColor = QuelytTheme.ink
+            return field
+        }
+        guard row < columns.count else { return nil }
+        let item = columns[row]
+        let stack = NSStackView()
+        stack.orientation = .vertical
+        stack.alignment = .leading
+        stack.spacing = 1
+        let name = NSTextField(labelWithString: item.name)
+        name.font = .systemFont(ofSize: 12, weight: .medium)
+        name.textColor = QuelytTheme.ink
+        let meta = NSTextField(labelWithString: item.type)
+        meta.font = .monospacedSystemFont(ofSize: 10, weight: .regular)
+        meta.textColor = QuelytTheme.inkMuted
+        stack.addArrangedSubview(name)
+        stack.addArrangedSubview(meta)
+        return stack
+    }
+
+    private func reloadLists() {
+        databasesTable.reloadData()
+        tablesTable.reloadData()
+        columnTable.reloadData()
+        databasesScroll.isHidden = databases.isEmpty
+        databasesHeight.constant = databases.isEmpty ? 0 : CGFloat(min(databases.count, 5) * 22 + 4)
+        tablesScroll.isHidden = tables.isEmpty
+        tablesHeight.constant = tables.isEmpty ? 0 : CGFloat(min(tables.count, 6) * 22 + 4)
+    }
+
+    private func configure(_ table: NSTableView, identifier: String, rowHeight: CGFloat, label: String) {
+        table.headerView = nil
+        table.rowHeight = rowHeight
+        table.delegate = self
+        table.dataSource = self
+        table.backgroundColor = .clear
+        table.selectionHighlightStyle = .regular
+        table.setAccessibilityLabel(label)
+        let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier(identifier))
+        column.width = 200
+        table.addTableColumn(column)
+    }
+}
+
 final class HistoryPage: NSObject, NSTableViewDataSource, NSTableViewDelegate {
     var onSelectTrace: (([String: Any]) -> Void)?
     var onRerunTrace: (([String: Any]) -> Void)?

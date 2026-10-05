@@ -2,6 +2,7 @@ import AppKit
 
 enum SidebarDestination: String, CaseIterable {
     case databases
+    case datasets
     case history
     case connections
     case settings
@@ -10,6 +11,7 @@ enum SidebarDestination: String, CaseIterable {
     var title: String {
         switch self {
         case .databases: return "Databases"
+        case .datasets: return "Datasets"
         case .history: return "History"
         case .connections: return "Connections"
         case .settings: return "Settings"
@@ -20,6 +22,7 @@ enum SidebarDestination: String, CaseIterable {
     var symbol: String {
         switch self {
         case .databases: return "cylinder.split.1x2"
+        case .datasets: return "doc.text"
         case .history: return "clock"
         case .connections: return "link"
         case .settings: return "gearshape"
@@ -168,7 +171,7 @@ final class WorkspaceSidebar: NSViewController {
         let explore = QuelytTheme.sectionLabel("Explore")
         sectionLabels.append(explore)
         chrome.addArrangedSubview(explore)
-        for destination in [SidebarDestination.databases, .history] {
+        for destination in [SidebarDestination.databases, .datasets, .history] {
             chrome.addArrangedSubview(makeNav(destination))
         }
         chrome.setCustomSpacing(14, after: chrome.arrangedSubviews.last!)

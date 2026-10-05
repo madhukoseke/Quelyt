@@ -28,6 +28,7 @@ MAX_REQUEST_BYTES = 64 * 1024
 CHART_MIN_ROWS = 2
 CHART_MAX_ROWS = 24
 ISO_DATE_PREFIX = re.compile(r'^\d{4}-\d{2}-\d{2}')
+TABLE_NAME = re.compile(r'^[A-Za-z_][A-Za-z0-9_]*$')
 # Conservative, explicit scalar/aggregate vocabulary. Unknown functions fail closed.
 FUNCTIONS = {
     'SUM', 'COUNT', 'AVG', 'MIN', 'MAX', 'ABS', 'ROUND', 'FLOOR', 'CEIL',
@@ -75,6 +76,12 @@ def validate_sql(sql: str) -> None:
 
 def quote_ident(name: str) -> str:
     return '"' + name.replace('"', '""') + '"'
+
+
+def sql_literal(value: str) -> str:
+    if '\x00' in value:
+        raise PolicyError('Choose a local DuckDB file.')
+    return "'" + value.replace("'", "''") + "'"
 
 
 def type_name(value: str) -> str:
@@ -278,19 +285,80 @@ def fit_response(result: dict) -> dict:
         result['truncated'] = True
 
 
+def local_duckdb_path(request: dict, *, must_exist: bool) -> pathlib.Path:
+    raw = request.get('path')
+    if not isinstance(raw, str) or not raw or len(raw) > 4096:
+        raise PolicyError('Choose a local DuckDB file.')
+    source = pathlib.Path(raw).expanduser()
+    if source.suffix.lower() != '.duckdb':
+        raise PolicyError('Choose a local DuckDB file.')
+    if must_exist:
+        source = source.resolve(strict=True)
+        if not source.is_file():
+            raise PolicyError('Choose a local DuckDB file.')
+        if source.stat().st_size > MAX_FILE_BYTES:
+            raise PolicyError('This development build accepts files up to 256 MiB.')
+        return source
+    parent = source.parent.resolve(strict=True)
+    return parent / source.name
+
+
+def create_database(request: dict) -> dict:
+    target = local_duckdb_path(request, must_exist=False)
+    if target.exists():
+        raise PolicyError('That database file already exists.')
+    connection = duckdb.connect(str(target))
+    connection.close()
+    return {'ok': True, 'action': 'create_database', 'source': target.name, 'path': str(target), 'tables': []}
+
+
+def inspect_database(request: dict) -> dict:
+    source = local_duckdb_path(request, must_exist=True)
+    connection = duckdb.connect(str(source), read_only=True)
+    try:
+        names = [
+            row[0] for row in connection.execute(
+                "SELECT table_name FROM information_schema.tables "
+                "WHERE table_schema = 'main' AND table_type = 'BASE TABLE' ORDER BY table_name"
+            ).fetchall()
+        ]
+        tables = []
+        for name in names:
+            if not isinstance(name, str) or TABLE_NAME.fullmatch(name) is None:
+                continue
+            columns = [
+                {'name': row[0], 'type': row[1]}
+                for row in connection.execute(f'DESCRIBE {quote_ident(name)}').fetchall()
+            ]
+            tables.append({'name': name, 'columns': columns})
+        return {'ok': True, 'action': 'inspect_database', 'source': source.name, 'path': str(source), 'tables': tables}
+    finally:
+        connection.close()
+
+
 def query(request: dict) -> dict:
     started = time.perf_counter()
     action = request.get('action', 'query')
+    if action == 'create_database':
+        return create_database(request)
+    if action == 'inspect_database':
+        return inspect_database(request)
     if action not in {'query', 'profile'}:
         raise PolicyError('Unknown worker action.')
     sql = request.get('sql', 'SELECT * FROM dataset LIMIT 200')
     if action == 'query':
         validate_sql(sql)
     source = pathlib.Path(request['path']).expanduser().resolve(strict=True)
-    if not source.is_file() or source.suffix.lower() not in {'.csv', '.parquet'}:
-        raise PolicyError('Choose a local CSV or Parquet file.')
+    suffix = source.suffix.lower()
+    if not source.is_file() or suffix not in {'.csv', '.parquet', '.duckdb'}:
+        raise PolicyError('Choose a local CSV, Parquet, or DuckDB file.')
     if source.stat().st_size > MAX_FILE_BYTES:
         raise PolicyError('This development build accepts files up to 256 MiB.')
+    table_name = None
+    if suffix == '.duckdb':
+        table_name = request.get('table')
+        if not isinstance(table_name, str) or TABLE_NAME.fullmatch(table_name) is None:
+            raise PolicyError('Choose one table in the local database.')
     deadline = request.get('timeout_seconds', 15)
     if not isinstance(deadline, (int, float)) or not .01 <= deadline <= 30:
         raise PolicyError('Query deadline must be between 0.01 and 30 seconds.')
@@ -302,8 +370,13 @@ def query(request: dict) -> dict:
     timer.start()
     try:
         # Only application code receives a path. Parameter binding avoids path SQL injection.
-        reader = 'read_csv' if source.suffix.lower() == '.csv' else 'read_parquet'
-        connection.execute(f'CREATE TABLE dataset AS SELECT * FROM {reader}(?)', [str(source)])
+        if suffix == '.duckdb':
+            connection.execute(f'ATTACH {sql_literal(str(source))} AS src (READ_ONLY)')
+            connection.execute(f'CREATE TABLE dataset AS SELECT * FROM src.{quote_ident(table_name)}')
+            connection.execute('DETACH src')
+        else:
+            reader = 'read_csv' if suffix == '.csv' else 'read_parquet'
+            connection.execute(f'CREATE TABLE dataset AS SELECT * FROM {reader}(?)', [str(source)])
         connection.execute('SET enable_external_access=false')
         connection.execute('SET lock_configuration=true')
         schema = [{'name': row[0], 'type': row[1]} for row in connection.execute('DESCRIBE dataset').fetchall()]
